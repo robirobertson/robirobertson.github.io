@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1124">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>3D Super-TicTacToe</title>
+<style>
+    :root {
+        --bg: #0e1124;
+        --panel: #161a36;
+        --panel2: #20264d;
+        --cell: #262d5c;
+        --line: #343c78;
+        --text: #eef0ff;
+        --muted: #9ea6d8;
+        --x: #ff4d6d;
+        --o: #35b6ff;
+        --x-soft: rgba(255, 77, 109, .28);
+        --o-soft: rgba(53, 182, 255, .28);
+        --sel: #ffd166;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+        margin: 0; height: 100%;
+        background: var(--bg); color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        overscroll-behavior: none;
+    }
+    body { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; overflow: hidden; }
+    button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+
+    #app {
+        display: flex; flex-direction: column; overflow-y: auto;
+        height: 100vh; height: 100dvh;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    /* ---------- Kopfzeile ---------- */
+    header { display: flex; align-items: center; gap: 6px; padding: 8px 10px 4px; }
+    .chip {
+        display: flex; align-items: center; gap: 8px;
+        padding: 5px 12px 5px 5px; border-radius: 999px;
+        background: var(--panel2); font-weight: 700; font-size: 15px;
+        transition: box-shadow .3s, background .3s; white-space: nowrap; min-width: 0; overflow: hidden;
+    }
+    #turnText { overflow: hidden; text-overflow: ellipsis; }
+    .chip .sym { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); }
+    .chip .sym svg { width: 20px; height: 20px; }
+    .chip.p1 { box-shadow: inset 0 0 0 2px var(--x); background: linear-gradient(90deg, var(--x-soft), var(--panel2)); }
+    .chip.p2 { box-shadow: inset 0 0 0 2px var(--o); background: linear-gradient(90deg, var(--o-soft), var(--panel2)); }
+    #score { margin-left: auto; display: flex; gap: 4px; flex: 0 0 auto; font-weight: 800; font-size: 14px; }
+    #score span { padding: 5px 6px; border-radius: 9px; background: var(--panel2); display: flex; align-items: center; gap: 4px; }
+    #score svg { width: 13px; height: 13px; }
+    .ib {
+        width: 36px; height: 36px; border-radius: 11px; border: 0;
+        background: var(--panel2); font-size: 19px; line-height: 1;
+        display: grid; place-items: center; flex: 0 0 auto;
+    }
+    .ib:active { transform: scale(.94); }
+    .ib:disabled { opacity: .35; }
+
+    #status { padding: 3px 12px 6px; font-size: 13.5px; color: var(--muted); min-height: 24px; line-height: 1.35; }
+    #status b { color: var(--text); }
+    #status .tx { color: var(--x); font-weight: 700; }
+    #status .to { color: var(--o); font-weight: 700; }
+
+    /* ---------- 3D-Bühne ---------- */
+    #stage {
+        position: relative; flex: 1 1 auto; min-height: 190px; margin: 0 8px;
+        border-radius: 18px; overflow: hidden;
+        background: radial-gradient(ellipse at 50% 38%, #27306a 0%, #161a3a 55%, #0f1229 100%);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    #cv { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+    .seg {
+        position: absolute; top: 8px; left: 8px; display: flex;
+        background: rgba(10, 12, 30, .65); border-radius: 11px; padding: 3px; gap: 2px;
+        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    }
+    .seg button { border: 0; background: transparent; padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+    .seg button.on { background: var(--panel2); color: var(--text); }
+    #btnReset { position: absolute; top: 8px; right: 8px; background: rgba(10, 12, 30, .65); width: 34px; height: 34px; font-size: 17px; }
+    #blockTag {
+        position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+        background: rgba(10, 12, 30, .7); padding: 4px 10px; border-radius: 9px;
+        font-size: 12px; color: var(--muted); white-space: nowrap; pointer-events: none;
+    }
+    #blockTag b { color: var(--sel); }
+
+    /* ---------- Bedienfeld ---------- */
+    #panel { flex: 0 0 auto; padding: 8px 10px 10px; }
+    .rowhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 2px 5px; font-size: 12.5px; color: var(--muted); }
+    .rowhead b { color: var(--text); font-size: 13.5px; }
+    .badge { font-size: 11.5px; padding: 2px 7px; border-radius: 6px; background: var(--panel2); white-space: nowrap; font-weight: 600; }
+    .badge.act1 { background: var(--x-soft); color: #ffd0d9; }
+    .badge.act2 { background: var(--o-soft); color: #cfeeff; }
+    .badge.won1 { background: var(--x); color: #fff; }
+    .badge.won2 { background: var(--o); color: #fff; }
+
+    .layers { display: flex; justify-content: center; gap: 10px; }
+    .layer { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .layer .ln { font-size: 10.5px; color: var(--muted); letter-spacing: .03em; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+
+    /* Übersichtskarte (27 Blöcke) */
+    #meta .grid { width: min(19vw, 84px, 11vh); height: min(19vw, 84px, 11vh); gap: 3px; }
+    .mcell {
+        border: 0; padding: 0; border-radius: 4px; background: var(--cell); position: relative;
+        display: grid; place-items: center; transition: background .25s;
+    }
+    .mcell svg { width: 70%; height: 70%; }
+    .mcell.w1 { background: var(--x); }
+    .mcell.w2 { background: var(--o); }
+    .mcell.w3 { background: #555b80; }
+    .mcell.act { box-shadow: inset 0 0 0 2px currentColor; animation: glow 1.2s ease-in-out infinite; }
+    .p1 .mcell.act { color: var(--x); background: var(--x-soft); }
+    .p2 .mcell.act { color: var(--o); background: var(--o-soft); }
+    .mcell.free.act { animation: none; box-shadow: inset 0 0 0 1.5px currentColor; }
+    .mcell.sel { outline: 2.5px solid var(--sel); outline-offset: 1px; z-index: 1; }
+    .mcell.target::after {
+        content: "➜"; position: absolute; inset: 0; display: grid; place-items: center;
+        color: var(--sel); font-size: 11px; font-weight: 900;
+        border: 2px dashed var(--sel); border-radius: 4px;
+    }
+    .mcell.last::before {
+        content: ""; position: absolute; width: 5px; height: 5px; right: 2px; top: 2px;
+        border-radius: 50%; background: #fff; box-shadow: 0 0 4px #fff;
+    }
+    .mcell.mwin { box-shadow: 0 0 0 2px #fff, 0 0 12px #fff; }
+
+    /* Block-Ansicht (3 Ebenen à 3×3) */
+    #block .grid { width: min(29vw, 136px, 19vh); height: min(29vw, 136px, 19vh); gap: 4px; }
+    .cell {
+        border: 0; padding: 0; border-radius: 7px; background: var(--cell); position: relative;
+        display: grid; place-items: center; transition: background .2s, opacity .2s;
+    }
+    .cell svg { width: 66%; height: 66%; }
+    .p1 .cell.ok { background: #2f2f5e; box-shadow: inset 0 0 0 1.5px rgba(255, 77, 109, .55); }
+    .p2 .cell.ok { background: #263a68; box-shadow: inset 0 0 0 1.5px rgba(53, 182, 255, .55); }
+    .cell.lock { opacity: .5; }
+    .cell.wl1 { background: var(--x-soft) !important; }
+    .cell.wl2 { background: var(--o-soft) !important; }
+    .cell.last::before { content: ""; position: absolute; inset: 2px; border-radius: 6px; border: 2px solid rgba(255,255,255,.85); }
+    .cell.pend { box-shadow: inset 0 0 0 3px var(--sel) !important; animation: pend 1s ease-in-out infinite; }
+    .cell .ghost { opacity: .45; }
+    .cell .fr { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--sel); opacity: .75; }
+    .cell.shake { animation: shake .3s; }
+
+    #playbar { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+    #playInfo { flex: 1; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+    #playInfo b { color: var(--sel); }
+    #btnPlay {
+        flex: 0 0 auto; border: 0; border-radius: 13px; padding: 12px 18px; font-weight: 800; font-size: 15px;
+        background: var(--panel2); color: var(--muted); min-width: 118px;
+        transition: background .2s, color .2s, transform .1s;
+    }
+    #btnPlay.ready1 { background: var(--x); color: #fff; box-shadow: 0 4px 16px rgba(255, 77, 109, .4); }
+    #btnPlay.ready2 { background: var(--o); color: #fff; box-shadow: 0 4px 16px rgba(53, 182, 255, .4); }
+    #btnPlay:active { transform: scale(.96); }
+    #btnPlay:disabled { cursor: default; }
+
+    .gap { height: 9px; }
+
+    /* ---------- Dialoge ---------- */
+    .modal {
+        position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center;
+        background: rgba(5, 6, 18, .72); padding: 18px;
+        backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    .modal.show { display: flex; }
+    .card {
+        background: var(--panel); border-radius: 20px; width: 100%; max-width: 440px; max-height: 88vh; max-height: 88dvh;
+        overflow: auto; padding: 18px 18px 16px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+        user-select: text; -webkit-user-select: text; -webkit-overflow-scrolling: touch;
+    }
+    .card h2 { margin: 0 0 10px; font-size: 21px; }
+    .card h3 { margin: 14px 0 4px; font-size: 15px; color: var(--sel); }
+    .card p, .card li { font-size: 14px; line-height: 1.45; color: #d6daf5; margin: 4px 0; }
+    .card ul { padding-left: 18px; margin: 4px 0; }
+    .opt {
+        display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+        border: 0; border-radius: 14px; padding: 13px 14px; margin: 7px 0; background: var(--panel2);
+        font-size: 15px; font-weight: 600;
+    }
+    .opt small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+    .opt .ic { font-size: 24px; width: 30px; text-align: center; }
+    .opt:active { transform: scale(.98); }
+    .btn {
+        border: 0; border-radius: 13px; padding: 12px 16px; font-weight: 700; font-size: 15px;
+        background: var(--panel2); width: 100%; margin-top: 10px;
+    }
+    .btn.primary { background: var(--sel); color: #1a1a2e; }
+    .win-big { font-size: 54px; text-align: center; margin: 4px 0 0; }
+    .center { text-align: center; }
+
+    #toast {
+        position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 92px); transform: translate(-50%, -10px);
+        background: rgba(20, 24, 54, .95); border: 1px solid var(--line); padding: 9px 14px; border-radius: 12px;
+        font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+        z-index: 30; max-width: 92vw; text-align: center; box-shadow: 0 8px 26px rgba(0,0,0,.45);
+    }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @keyframes glow { 50% { box-shadow: inset 0 0 0 2px currentColor, 0 0 10px currentColor; } }
+    @keyframes pend { 50% { box-shadow: inset 0 0 0 3px var(--sel), 0 0 12px var(--sel) !important; } }
+    @keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+    /* Niedrige Bildschirme (z. B. iPhone SE mit Browserleisten) */
+    @media (max-height: 640px) and (orientation: portrait) {
+        #stage { min-height: 150px; }
+        header { padding-top: 6px; }
+        #status { padding-bottom: 4px; font-size: 13px; }
+        #panel { padding-top: 6px; padding-bottom: 6px; }
+        .rowhead { margin-bottom: 3px; }
+        .gap { height: 5px; }
+        #meta .grid { width: min(19vw, 84px, 9.5vh); height: min(19vw, 84px, 9.5vh); gap: 2px; }
+        #block .grid { width: min(29vw, 136px, 17vh); height: min(29vw, 136px, 17vh); gap: 3px; }
+        #playbar { margin-top: 6px; }
+        #btnPlay { padding: 10px 16px; }
+    }
+
+    /* Querformat / Tablet / Desktop: 3D links, Bedienung rechts */
+    @media (orientation: landscape) and (min-width: 640px) {
+        #app { display: grid; grid-template-columns: 1fr minmax(340px, 44%); grid-template-rows: auto auto 1fr; }
+        header { grid-column: 1 / 3; }
+        #status { grid-column: 1 / 3; }
+        #stage { grid-column: 1; grid-row: 3; margin: 0 4px 10px 10px; }
+        #panel { grid-column: 2; grid-row: 3; overflow: auto; padding-top: 0; }
+        #meta .grid { width: min(10vw, 90px); height: min(10vw, 90px); }
+        #block .grid { width: min(13vw, 150px, 28vh); height: min(13vw, 150px, 28vh); }
+    }
+</style>
+</head>
+<body>
+<div id="app" class="p1">
+    <header>
+        <div id="turn" class="chip p1"><span class="sym" id="turnSym"></span><span id="turnText">Rot am Zug</span></div>
+        <div id="score"></div>
+        <button class="ib" id="btnUndo" title="Zug zurücknehmen" aria-label="Zug zurücknehmen">↶</button>
+        <button class="ib" id="btnHelp" title="Regeln" aria-label="Regeln">?</button>
+        <button class="ib" id="btnNew" title="Neues Spiel" aria-label="Neues Spiel">＋</button>
+    </header>
+    <div id="status"></div>
+
+    <div id="stage">
+        <canvas id="cv"></canvas>
+        <div class="seg">
+            <button id="vAll" class="on">Ganzer Würfel</button>
+            <button id="vBlock">Block</button>
+        </div>
+        <button class="ib" id="btnReset" title="Ansicht zurücksetzen" aria-label="Ansicht zurücksetzen">⟲</button>
+        <div id="blockTag"></div>
+    </div>
+
+    <section id="panel">
+        <div class="rowhead"><span><b>Übersicht</b> · 27 Blöcke</span><span>Antippen zum Ansehen</span></div>
+        <div id="meta" class="layers"></div>
+        <div class="gap"></div>
+        <div class="rowhead"><span>Block <b id="blockName">–</b></span><span id="blockBadge" class="badge"></span></div>
+        <div id="block" class="layers"></div>
+        <div id="playbar">
+            <div id="playInfo">Tippe ein Feld an.</div>
+            <button id="btnPlay" disabled>Setzen</button>
+        </div>
+    </section>
+</div>
+
+<!-- Neues Spiel -->
+<div class="modal" id="mNew">
+    <div class="card">
+        <h2>Neues Spiel</h2>
+        <button class="opt" data-mode="pvp"><span class="ic">👥</span><span>2 Spieler<small>Abwechselnd auf einem Handy</small></span></button>
+        <button class="opt" data-mode="easy"><span class="ic">🙂</span><span>Gegen Computer – Leicht<small>Du spielst Rot ✕ und beginnst</small></span></button>
+        <button class="opt" data-mode="normal"><span class="ic">🤖</span><span>Gegen Computer – Normal<small>Du spielst Rot ✕ und beginnst</small></span></button>
+        <button class="btn" data-close>Abbrechen</button>
+    </div>
+</div>
+
+<!-- Regeln -->
+<div class="modal" id="mHelp">
+    <div class="card">
+        <h2>3D-Super-TicTacToe</h2>
+        <p>Wie Super-TicTacToe – nur in drei Dimensionen. Statt 9 Feldern aus je 3×3 gibt es einen großen Würfel aus <b>27 Blöcken</b>, und jeder Block ist selbst ein kleiner <b>3×3×3-Würfel</b> mit 27 Feldern (729 Felder insgesamt).</p>
+
+        <h3>🎯 Ziel</h3>
+        <p>Gewinne <b>drei Blöcke in einer Reihe</b> im großen Würfel – gerade, über die Ebenen hinweg oder diagonal, auch quer durch die Würfelmitte. Ein 3×3×3-Würfel hat 49 solcher Reihen.</p>
+
+        <h3>➜ Die Zugregel</h3>
+        <p>Die Position des Feldes, in das du setzt, bestimmt den Block, in dem dein Gegner als Nächstes spielen muss. Setzt du z.&nbsp;B. in das Feld <i>„oben vorne links“</i> eines Blocks, muss der Gegner im Block <i>„oben vorne links“</i> des großen Würfels weiterspielen.</p>
+
+        <h3>🏆 Block gewinnen</h3>
+        <p>Wer zuerst drei eigene Steine in einer Reihe innerhalb eines Blocks hat, gewinnt diesen Block. Ein gewonnener Block ist geschlossen – dort darf niemand mehr setzen.</p>
+
+        <h3>🔓 Freie Wahl</h3>
+        <p>Wirst du in einen geschlossenen Block geschickt, darfst du in <b>jedem offenen Block</b> setzen. Auch der allererste Zug ist frei.</p>
+
+        <h3>📱 Bedienung</h3>
+        <ul>
+            <li><b>3D-Ansicht:</b> mit einem Finger drehen, mit zwei Fingern zoomen. Einen Block antippen, um ihn auszuwählen; doppelt tippen oder „Block“ wählen, um hineinzuzoomen.</li>
+            <li><b>Übersicht:</b> die 27 Blöcke als 3 Ebenen (oben · mitte · unten). Oben im Raster = hinten, unten = vorne.</li>
+            <li><b>Block:</b> die 27 Felder des gewählten Blocks, ebenfalls als 3 Ebenen. Feld antippen, dann <b>„Setzen“</b> drücken (oder das Feld noch einmal antippen).</li>
+            <li>Das gestrichelte <b style="color:var(--sel)">➜</b> in der Übersicht zeigt, wohin dein Zug den Gegner schickt.</li>
+            <li>Ein kleiner <b style="color:var(--sel)">gelber Punkt</b> in einem Feld bedeutet: dieser Zug schickt den Gegner in einen geschlossenen Block – er hat dann freie Wahl.</li>
+            <li>Leuchtende Blöcke/Felder in Spielerfarbe = hier darf gerade gesetzt werden.</li>
+        </ul>
+
+        <h3>💡 Tipp</h3>
+        <p>Das Mittelfeld eines Blocks liegt auf 13 Reihen und ist sehr stark – es schickt den Gegner aber in den wichtigen Mittelblock!</p>
+        <button class="btn primary" data-close>Los geht's</button>
+    </div>
+</div>
+
+<!-- Sieg -->
+<div class="modal" id="mWin">
+    <div class="card center">
+        <div class="win-big" id="winIcon">🏆</div>
+        <h2 id="winText">Rot gewinnt!</h2>
+        <p id="winSub"></p>
+        <button class="btn primary" id="btnWinNew">Neues Spiel</button>
+        <button class="btn" data-close>Brett ansehen</button>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+(function () {
+
+/* =====================================================================
+   Grundlagen: Koordinaten
+   Index i = y*9 + z*3 + x   (y: Ebene 0=oben..2=unten,
+                              z: Reihe 0=hinten..2=vorne,
+                              x: Spalte 0=links..2=rechts)
+   Gilt gleichermaßen für Blöcke im großen Würfel und Felder im Block.
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const NAME = { 1: 'Rot', 2: 'Blau' };
+const COL = { 1: '#ff4d6d', 2: '#35b6ff' };
+const RGB = { 1: '255,77,109', 2: '53,182,255' };
+const SEL_RGB = '255,209,102';
+const STORE = 'super3d_ttt_v1';
+
+const ix = i => i % 3, iz = i => ((i / 3) | 0) % 3, iy = i => (i / 9) | 0;
+
+function posName(i) {
+    const p = [['oben', '', 'unten'][iy(i)], ['hinten', '', 'vorne'][iz(i)], ['links', '', 'rechts'][ix(i)]].filter(Boolean);
+    return p.length ? p.join(' ') : 'Zentrum';
+}
+
+/* Alle 49 Gewinnreihen eines 3×3×3-Würfels */
+const LINES = (() => {
+    const L = [], seen = new Set();
+    for (let a = 0; a < 27; a++) {
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+            if (!dx && !dy && !dz) continue;
+            const pts = [];
+            for (let k = 0; k < 3; k++) {
+                const x = ix(a) + dx * k, y = iy(a) + dy * k, z = iz(a) + dz * k;
+                if (x < 0 || x > 2 || y < 0 || y > 2 || z < 0 || z > 2) break;
+                pts.push(y * 9 + z * 3 + x);
+            }
+            if (pts.length < 3) continue;
+            const key = pts.slice().sort((p, q) => p - q).join(',');
+            if (!seen.has(key)) { seen.add(key); L.push(pts); }
+        }
+    }
+    return L;
+})();
+const LT = Array.from({ length: 27 }, (_, i) => LINES.filter(l => l.includes(i)));
+
+/* =====================================================================
+   Spiellogik
+   ===================================================================== */
+function newState() {
+    return {
+        cells: Array.from({ length: 27 }, () => new Array(27).fill(0)),
+        bw: new Array(27).fill(0),          // 0 offen, 1/2 gewonnen, 3 voll/unentschieden
+        bLine: new Array(27).fill(null),
+        bCount: new Array(27).fill(0),
+        turn: 1, forced: -1, winner: 0, metaLine: null, history: []
+    };
+}
+function isOpen(s, b) { return s.bw[b] === 0; }
+function legalBlocks(s) {
+    if (s.winner) return [];
+    if (s.forced >= 0 && isOpen(s, s.forced)) return [s.forced];
+    const r = [];
+    for (let b = 0; b < 27; b++) if (isOpen(s, b)) r.push(b);
+    return r;
+}
+function blockLegal(s, b) {
+    return !s.winner && isOpen(s, b) && (s.forced < 0 || s.forced === b || !isOpen(s, s.forced));
+}
+function isLegal(s, b, c) { return blockLegal(s, b) && s.cells[b][c] === 0; }
+
+function applyMove(s, b, c) {
+    const p = s.turn;
+    s.cells[b][c] = p; s.bCount[b]++; s.history.push([b, c]);
+    for (const l of LT[c]) {
+        if (l.every(i => s.cells[b][i] === p)) { s.bw[b] = p; s.bLine[b] = l; break; }
+    }
+    if (!s.bw[b] && s.bCount[b] === 27) s.bw[b] = 3;
+    if (s.bw[b] === p) {
+        for (const l of LT[b]) {
+            if (l.every(i => s.bw[i] === p)) { s.winner = p; s.metaLine = l; break; }
+        }
+    }
+    if (!s.winner && s.bw.every(v => v)) s.winner = 3;
+    s.forced = isOpen(s, c) ? c : -1;
+    s.turn = 3 - p;
+}
+
+/* =====================================================================
+   Computergegner (heuristisch)
+   ===================================================================== */
+function threats(cells, p) {            // Anzahl leerer Felder, die für p eine Reihe vollenden
+    let n = 0;
+    for (let i = 0; i < 27; i++) {
+        if (cells[i]) continue;
+        for (const l of LT[i]) {
+            let ok = true;
+            for (const j of l) if (j !== i && cells[j] !== p) { ok = false; break; }
+            if (ok) { n++; break; }
+        }
+    }
+    return n;
+}
+function metaWinIf(bw, b, p) {
+    for (const l of LT[b]) if (l.every(j => j === b || bw[j] === p)) return true;
+    return false;
+}
+function metaValue(bw, b, p) {
+    let v = 0;
+    for (const l of LT[b]) {
+        let mine = 0, dead = false;
+        for (const j of l) {
+            if (j === b) continue;
+            if (bw[j] === p) mine++; else if (bw[j]) { dead = true; break; }
+        }
+        if (!dead) v += 1 + mine * 3;
+    }
+    return v;
+}
+function evalMove(s, b, c, me, op) {
+    const cells = s.cells[b];
+    let sc = LT[c].length * 3, winB = false, blockOp = false;
+    for (const l of LT[c]) {
+        let m = 0, o = 0;
+        for (const j of l) { if (j === c) continue; if (cells[j] === me) m++; else if (cells[j] === op) o++; }
+        if (m === 2) winB = true;
+        if (o === 2) blockOp = true;
+        if (o === 0) sc += m === 1 ? 14 : 4;
+        if (m === 0 && o === 1) sc += 3;
+    }
+    if (winB) {
+        if (metaWinIf(s.bw, b, me)) return 1e9;
+        sc += 600 + 45 * metaValue(s.bw, b, me);
+    }
+    if (blockOp) {
+        sc += 380 + 35 * metaValue(s.bw, b, op);
+        if (metaWinIf(s.bw, b, op)) sc += 4e5;
+    }
+    // Wohin wird der Gegner geschickt?
+    cells[c] = me;
+    const saved = s.bw[b];
+    if (winB) s.bw[b] = me;
+    if (s.bw[c] !== 0) {
+        sc -= 220;
+        for (let k = 0; k < 27; k++) {
+            if (!s.bw[k] && metaWinIf(s.bw, k, op) && threats(s.cells[k], op)) { sc -= 3e5; break; }
+        }
+    } else {
+        const ot = threats(s.cells[c], op);
+        if (ot) {
+            sc -= 420 + 40 * metaValue(s.bw, c, op);
+            if (metaWinIf(s.bw, c, op)) sc -= 3e5;
+        } else if (threats(s.cells[c], me)) sc += 40;
+    }
+    cells[c] = 0; s.bw[b] = saved;
+    return sc;
+}
+function aiChoose(s, level) {
+    const me = s.turn, op = 3 - me;
+    let best = -Infinity, bm = null;
+    for (const b of legalBlocks(s)) {
+        for (let c = 0; c < 27; c++) {
+            if (s.cells[b][c]) continue;
+            const v = evalMove(s, b, c, me, op) + Math.random() * (level === 'easy' ? 700 : 10);
+            if (v > best) { best = v; bm = [b, c]; }
+        }
+    }
+    return bm;
+}
+
+/* =====================================================================
+   App-Zustand
+   ===================================================================== */
+let st = newState();
+let mode = 'pvp';
+let viewBlock = 13;
+let pending = null;                 // {b, c}
+let view3d = 'all';
+let aiTimer = null;
+
+function save() {
+    try { localStorage.setItem(STORE, JSON.stringify({ mode, h: st.history })); } catch (e) { }
+}
+function replay(h) {
+    st = newState();
+    for (const m of h) if (isLegal(st, m[0], m[1])) applyMove(st, m[0], m[1]);
+}
+function load() {
+    try {
+        const d = JSON.parse(localStorage.getItem(STORE) || 'null');
+        if (d && Array.isArray(d.h)) { mode = d.mode || 'pvp'; replay(d.h); }
+    } catch (e) { st = newState(); }
+    if (st.forced >= 0) viewBlock = st.forced;
+    else if (st.history.length) viewBlock = st.history[st.history.length - 1][0];
+}
+const vsAI = () => mode !== 'pvp';
+const aiTurn = () => vsAI() && st.turn === 2 && !st.winner;
+const lastMove = () => st.history.length ? st.history[st.history.length - 1] : null;
+
+/* =====================================================================
+   Symbole
+   ===================================================================== */
+function svgSym(p, color, cls) {
+    const c = color || COL[p], k = cls ? ` class="${cls}"` : '';
+    if (p === 1) return `<svg${k} viewBox="0 0 24 24"><path d="M6 6L18 18M18 6L6 18" stroke="${c}" stroke-width="3.4" stroke-linecap="round" fill="none"/></svg>`;
+    if (p === 2) return `<svg${k} viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.6" stroke="${c}" stroke-width="3.4" fill="none"/></svg>`;
+    return '';
+}
+
+/* =====================================================================
+   DOM aufbauen
+   ===================================================================== */
+const LAYER = ['oben', 'mitte', 'unten'];
+const metaEl = $('#meta'), blockEl = $('#block');
+const mcells = [], bcells = [];
+for (let y = 0; y < 3; y++) {
+    const lm = document.createElement('div'); lm.className = 'layer';
+    const gm = document.createElement('div'); gm.className = 'grid';
+    const lb = document.createElement('div'); lb.className = 'layer';
+    const gb = document.createElement('div'); gb.className = 'grid';
+    for (let k = 0; k < 9; k++) {
+        const i = y * 9 + k;
+        const m = document.createElement('button'); m.className = 'mcell'; m.dataset.i = i;
+        m.setAttribute('aria-label', 'Block ' + posName(i));
+        gm.appendChild(m); mcells[i] = m;
+        const c = document.createElement('button'); c.className = 'cell'; c.dataset.i = i;
+        c.setAttribute('aria-label', 'Feld ' + posName(i));
+        gb.appendChild(c); bcells[i] = c;
+    }
+    lm.appendChild(gm); lm.insertAdjacentHTML('beforeend', `<span class="ln">${LAYER[y]}</span>`);
+    lb.appendChild(gb); lb.insertAdjacentHTML('beforeend', `<span class="ln">Ebene ${LAYER[y]}</span>`);
+    metaEl.appendChild(lm); blockEl.appendChild(lb);
+}
+
+/* =====================================================================
+   UI aktualisieren
+   ===================================================================== */
+function updateUI() {
+    const app = $('#app'), p = st.turn;
+    app.classList.toggle('p1', p === 1 && !st.winner);
+    app.classList.toggle('p2', p === 2 && !st.winner);
+
+    // Kopfzeile
+    const chip = $('#turn');
+    chip.className = 'chip' + (st.winner ? '' : ' p' + p);
+    if (st.winner === 1 || st.winner === 2) {
+        $('#turnSym').innerHTML = svgSym(st.winner);
+        $('#turnText').textContent = NAME[st.winner] + ' 🏆';
+    } else if (st.winner === 3) {
+        $('#turnSym').innerHTML = '🤝'; $('#turnText').textContent = 'Unentschieden';
+    } else {
+        $('#turnSym').innerHTML = svgSym(p);
+        $('#turnText').textContent = aiTurn() ? 'Computer' : (vsAI() ? 'Du' : NAME[p]) + ' am Zug';
+    }
+    let n1 = 0, n2 = 0;
+    st.bw.forEach(v => { if (v === 1) n1++; else if (v === 2) n2++; });
+    $('#score').innerHTML = `<span>${svgSym(1)}${n1}</span><span>${svgSym(2)}${n2}</span>`;
+    $('#btnUndo').disabled = !st.history.length;
+
+    // Statuszeile
+    const who = `<span class="t${p === 1 ? 'x' : 'o'}">${aiTurn() ? 'Computer' : NAME[p]}</span>`;
+    let status;
+    if (st.winner === 1 || st.winner === 2) status = `<b>Spiel vorbei:</b> <span class="t${st.winner === 1 ? 'x' : 'o'}">${NAME[st.winner]}</span> hat drei Blöcke in einer Reihe!`;
+    else if (st.winner === 3) status = '<b>Spiel vorbei:</b> Unentschieden.';
+    else if (!st.history.length) status = `${who} beginnt – <b>freie Wahl</b>: setze in einen beliebigen Block.`;
+    else if (st.forced >= 0) status = `${who} muss in Block <b>${posName(st.forced)}</b> spielen.`;
+    else status = `${who} hat <b>freie Wahl</b> – der Zielblock ist schon entschieden.`;
+    if (aiTurn()) status = `${who} denkt nach …`;
+    $('#status').innerHTML = status;
+
+    // Übersicht
+    const lm = lastMove();
+    const target = pending ? pending.c : -1;
+    const freeChoice = st.forced < 0 || !isOpen(st, st.forced);
+    for (let b = 0; b < 27; b++) {
+        const m = mcells[b], w = st.bw[b];
+        let cls = 'mcell';
+        if (w) cls += ' w' + w;
+        if (blockLegal(st, b)) cls += ' act' + (freeChoice ? ' free' : '');
+        if (b === viewBlock) cls += ' sel';
+        if (b === target) cls += ' target';
+        if (lm && lm[0] === b) cls += ' last';
+        if (st.metaLine && st.metaLine.includes(b)) cls += ' mwin';
+        m.className = cls;
+        m.innerHTML = (w === 1 || w === 2) ? svgSym(w, '#fff') : '';
+    }
+
+    // Block
+    const vb = viewBlock, cells = st.cells[vb], w = st.bw[vb];
+    $('#blockName').textContent = posName(vb);
+    const badge = $('#blockBadge');
+    if (w === 1 || w === 2) { badge.className = 'badge won' + w; badge.textContent = 'gewonnen von ' + NAME[w]; }
+    else if (w === 3) { badge.className = 'badge'; badge.textContent = 'voll – unentschieden'; }
+    else if (blockLegal(st, vb)) { badge.className = 'badge act' + p; badge.textContent = aiTurn() ? 'Computer spielt hier' : 'hier spielen ✓'; }
+    else if (st.winner) { badge.className = 'badge'; badge.textContent = 'Spiel beendet'; }
+    else { badge.className = 'badge'; badge.textContent = 'gerade nicht spielbar'; }
+    $('#blockTag').innerHTML = `Block <b>${posName(vb)}</b>`;
+
+    const canPlay = blockLegal(st, vb) && !aiTurn();
+    const wl = st.bLine[vb];
+    for (let c = 0; c < 27; c++) {
+        const el = bcells[c], v = cells[c];
+        let cls = 'cell', html = '';
+        if (v) html = svgSym(v);
+        else if (canPlay) {
+            cls += ' ok';
+            if (pending && pending.b === vb && pending.c === c) { cls += ' pend'; html = svgSym(p, null, 'ghost'); }
+            if (!isOpen(st, c) || (c === vb && wouldWinBlock(vb, c, p))) html += '<span class="fr"></span>';
+        } else cls += ' lock';
+        if (wl && wl.includes(c)) cls += ' wl' + w;
+        if (lm && lm[0] === vb && lm[1] === c) cls += ' last';
+        el.className = cls; el.innerHTML = html;
+    }
+
+    // Setzen-Leiste
+    const bp = $('#btnPlay'), info = $('#playInfo');
+    if (st.winner) {
+        bp.disabled = false; bp.className = st.winner === 3 ? 'ready1' : 'ready' + st.winner; bp.textContent = 'Neues Spiel';
+        info.innerHTML = 'Das Spiel ist vorbei.';
+    } else if (aiTurn()) {
+        bp.disabled = true; bp.className = ''; bp.textContent = 'Warte …';
+        info.innerHTML = 'Der Computer ist am Zug.';
+    } else if (pending) {
+        bp.disabled = false; bp.className = 'ready' + p; bp.textContent = 'Setzen ✓';
+        const t = pending.c;
+        const winsHere = wouldWinBlock(pending.b, pending.c, p);
+        const tOpen = isOpen(st, t) && !(winsHere && t === pending.b);
+        info.innerHTML = tOpen
+            ? `Gegner muss dann in Block <b>${posName(t)}</b> spielen.`
+            : `Block <b>${posName(t)}</b> ist entschieden → Gegner hat <b>freie Wahl</b>.`;
+        if (winsHere) info.innerHTML = '🏆 Damit gewinnst du diesen Block! ' + info.innerHTML;
+    } else {
+        bp.disabled = true; bp.className = ''; bp.textContent = 'Setzen';
+        info.innerHTML = canPlay ? 'Tippe ein leuchtendes Feld an.'
+            : (freeChoice ? 'Wähle oben einen offenen Block.' : `Wechsle zu Block <b>${posName(st.forced)}</b>.`);
+    }
+
+    $('#vAll').classList.toggle('on', view3d === 'all');
+    $('#vBlock').classList.toggle('on', view3d === 'block');
+}
+
+function wouldWinBlock(b, c, p) {
+    const cells = st.cells[b];
+    return LT[c].some(l => l.every(j => j === c || cells[j] === p));
+}
+
+/* =====================================================================
+   Aktionen
+   ===================================================================== */
+function vibrate(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) { } }
+let toastT = 0;
+function toast(msg) {
+    const t = $('#toast'); t.innerHTML = msg; t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function setView(b) {
+    viewBlock = b;
+    if (pending && pending.b !== b) pending = null;
+}
+
+function play(b, c) {
+    if (!isLegal(st, b, c)) return;
+    const mover = st.turn, before = st.bw[b];
+    applyMove(st, b, c);
+    pending = null;
+    if (st.bw[b] !== before) {
+        vibrate([25, 50, 35]);
+        if (st.bw[b] === 3) toast(`Block ${posName(b)} ist voll – unentschieden`);
+        else toast(`${svgInline(mover)} ${vsAI() ? (mover === 1 ? 'Du gewinnst' : 'Computer gewinnt') : NAME[mover] + ' gewinnt'} Block <b>${posName(b)}</b>!`);
+    } else vibrate(15);
+    if (st.forced >= 0) setView(st.forced);
+    save();
+    updateUI();
+    if (st.winner) setTimeout(showWin, 900);
+    else if (aiTurn()) scheduleAI();
+}
+function svgInline(p) {
+    return `<span style="display:inline-block;width:15px;height:15px;vertical-align:-2px">${svgSym(p)}</span>`;
+}
+function scheduleAI() {
+    clearTimeout(aiTimer);
+    aiTimer = setTimeout(() => {
+        aiTimer = null;
+        if (!aiTurn()) return;
+        const m = aiChoose(st, mode);
+        if (m) {
+            if (view3d === 'block') setView(m[0]);
+            play(m[0], m[1]);
+        }
+    }, 700);
+}
+
+function tapCell(c) {
+    if (st.winner || aiTurn()) return;
+    const b = viewBlock;
+    if (!isLegal(st, b, c)) {
+        const el = bcells[c];
+        el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+        if (st.cells[b][c]) return;
+        if (!isOpen(st, b)) toast('Dieser Block ist bereits entschieden.');
+        else toast(`Du musst in Block <b>${posName(st.forced)}</b> spielen.`);
+        return;
+    }
+    if (pending && pending.b === b && pending.c === c) { play(b, c); return; }
+    pending = { b, c };
+    vibrate(8);
+    updateUI();
+}
+function tapMeta(b) {
+    setView(b);
+    updateUI();
+}
+function newGame(m) {
+    clearTimeout(aiTimer); aiTimer = null;
+    mode = m; st = newState(); pending = null; viewBlock = 13;
+    save(); updateUI();
+}
+function undo() {
+    if (!st.history.length) return;
+    clearTimeout(aiTimer); aiTimer = null;
+    const h = st.history.slice();
+    h.pop();
+    if (vsAI() && h.length % 2 === 1) h.pop();       // zurück bis der Mensch dran ist
+    replay(h);
+    pending = null;
+    const lm = lastMove();
+    if (st.forced >= 0) viewBlock = st.forced; else if (lm) viewBlock = lm[0];
+    save(); updateUI();
+    if (aiTurn()) scheduleAI();
+}
+
+function openModal(id) { $(id).classList.add('show'); }
+function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('show')); }
+function showWin() {
+    if (!st.winner) return;
+    $('#toast').classList.remove('show');
+    if (st.winner === 3) {
+        $('#winIcon').textContent = '🤝'; $('#winText').textContent = 'Unentschieden!'; $('#winSub').textContent = 'Alle Blöcke sind entschieden.';
+    } else {
+        const w = st.winner;
+        $('#winIcon').textContent = vsAI() && w === 2 ? '🤖' : '🏆';
+        $('#winText').innerHTML = vsAI() ? (w === 1 ? 'Du gewinnst!' : 'Der Computer gewinnt!') : `<span style="color:${COL[w]}">${NAME[w]}</span> gewinnt!`;
+        $('#winSub').textContent = `Drei Blöcke in einer Reihe nach ${st.history.length} Zügen.`;
+    }
+    openModal('#mWin');
+}
+
+metaEl.addEventListener('click', e => { const t = e.target.closest('.mcell'); if (t) tapMeta(+t.dataset.i); });
+blockEl.addEventListener('click', e => { const t = e.target.closest('.cell'); if (t) tapCell(+t.dataset.i); });
+$('#btnPlay').addEventListener('click', () => {
+    if (st.winner) { openModal('#mNew'); return; }
+    if (pending) play(pending.b, pending.c);
+});
+$('#btnUndo').addEventListener('click', undo);
+$('#btnHelp').addEventListener('click', () => openModal('#mHelp'));
+$('#btnNew').addEventListener('click', () => openModal('#mNew'));
+$('#btnWinNew').addEventListener('click', () => { closeModals(); openModal('#mNew'); });
+document.querySelectorAll('.opt').forEach(o => o.addEventListener('click', () => { closeModals(); newGame(o.dataset.mode); }));
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModals(); }));
+$('#vAll').addEventListener('click', () => { view3d = 'all'; updateUI(); });
+$('#vBlock').addEventListener('click', () => { view3d = 'block'; updateUI(); });
+$('#btnReset').addEventListener('click', resetCam);
+
+/* =====================================================================
+   3D-Darstellung (eigener kleiner Canvas-Renderer, keine Bibliotheken)
+   ===================================================================== */
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const stage = $('#stage');
+let W = 0, H = 0, DPR = 1;
+const SPACING = 4.4;            // Abstand der Blockmitten
+const HALF = 1.45;              // halbe Kantenlänge eines Blocks
+const SM_BLOCK = 3.3;           // Vergrößerung in der Block-Ansicht
+const cam = { yaw: -0.55, pitch: 0.5, zoom: 1, vyaw: 0, vpitch: 0, c: [0, 0, 0], sm: 1 };
+
+function resetCam() { cam.yaw = -0.55; cam.pitch = 0.5; cam.zoom = 1; cam.vyaw = cam.vpitch = 0; }
+function resize() {
+    const r = stage.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(1, r.width); H = Math.max(1, r.height);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+}
+if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+window.addEventListener('resize', resize);
+resize();
+
+function blockCenter(b) { return [(ix(b) - 1) * SPACING, -(iy(b) - 1) * SPACING, (iz(b) - 1) * SPACING]; }
+function cellPos(b, c) {
+    const bc = blockCenter(b);
+    return [bc[0] + ix(c) - 1, bc[1] - (iy(c) - 1), bc[2] + iz(c) - 1];
+}
+
+// Vorgerenderte Kugeln (schnell auch auf dem Handy)
+function makeSprite(light, mid, dark, kind) {
+    const s = 128, c = document.createElement('canvas'); c.width = c.height = s;
+    const g = c.getContext('2d'), r = s / 2 - 2;
+    const grd = g.createRadialGradient(s * .36, s * .32, r * .08, s / 2, s / 2, r);
+    grd.addColorStop(0, light); grd.addColorStop(.5, mid); grd.addColorStop(1, dark);
+    g.fillStyle = grd; g.beginPath(); g.arc(s / 2, s / 2, r, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = s * .085; g.lineCap = 'round';
+    const d = r * .36;
+    g.beginPath();
+    if (kind === 1) { g.moveTo(s / 2 - d, s / 2 - d); g.lineTo(s / 2 + d, s / 2 + d); g.moveTo(s / 2 + d, s / 2 - d); g.lineTo(s / 2 - d, s / 2 + d); }
+    else if (kind === 2) g.arc(s / 2, s / 2, d * 1.05, 0, Math.PI * 2);
+    if (kind) g.stroke();
+    return c;
+}
+function makeDot(rgb) {
+    const s = 32, c = document.createElement('canvas'); c.width = c.height = s;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    grd.addColorStop(0, `rgba(${rgb},1)`); grd.addColorStop(.55, `rgba(${rgb},.85)`); grd.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = grd; g.fillRect(0, 0, s, s);
+    return c;
+}
+const SPR = {
+    1: makeSprite('#ffc2cd', '#ff4d6d', '#7d0f2a', 1),
+    2: makeSprite('#c4ecff', '#35b6ff', '#0a4675', 2),
+    dot: makeDot('200,208,255'), dot1: makeDot(RGB[1]), dot2: makeDot(RGB[2]), dotS: makeDot(SEL_RGB)
+};
+
+const EDGES = [[0, 1], [1, 3], [3, 2], [2, 0], [4, 5], [5, 7], [7, 6], [6, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+let pick = { hulls: [], cells: [] };
+
+function convexHull(pts) {
+    const p = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+    const cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    const lo = [], up = [];
+    for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+    for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+    up.pop(); lo.pop();
+    return lo.concat(up);
+}
+function inPoly(x, y, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const a = poly[i], b = poly[j];
+        if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+}
+
+function draw(ts) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const pulse = .5 + .5 * Math.sin(ts / 260);
+    const fT = Math.max(0, Math.min(1, (cam.sm - 1) / (SM_BLOCK - 1)));
+    const base = Math.min(W, H) / 2 / 10.6 * cam.sm * cam.zoom;
+    const D = 22 / cam.sm + 7;
+    const cyw = Math.cos(cam.yaw), syw = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    const cx0 = W / 2, cy0 = H / 2 + (view3d === 'block' ? 0 : 4);
+
+    function proj(p) {
+        const x = p[0] - cam.c[0], y = p[1] - cam.c[1], z = p[2] - cam.c[2];
+        const x1 = x * cyw + z * syw, z1 = -x * syw + z * cyw;
+        const y2 = y * cp - z1 * sp, z2 = z1 * cp + y * sp;
+        const den = D - z2;
+        if (den < 0.9) return null;
+        const f = D / den * base;
+        return { x: cx0 + x1 * f, y: cy0 - y2 * f, z: z2, f };
+    }
+
+    const p = st.turn, items = [];
+    const free = st.forced < 0 || !isOpen(st, st.forced);
+    const lm = lastMove();
+    const R = .38 - .1 * fT;
+    pick = { hulls: [], cells: [] };
+
+    for (let b = 0; b < 27; b++) {
+        const bA = b === viewBlock ? 1 : 1 - fT;
+        if (bA < .03) continue;
+        const bc = blockCenter(b), w = st.bw[b];
+        const active = blockLegal(st, b) && !aiTurn();
+        const corners = [];
+        let bad = false;
+        for (let k = 0; k < 8; k++) {
+            const q = proj([bc[0] + (k & 1 ? HALF : -HALF), bc[1] + (k & 2 ? HALF : -HALF), bc[2] + (k & 4 ? HALF : -HALF)]);
+            if (!q) { bad = true; break; }
+            corners.push(q);
+        }
+        if (bad) continue;
+        const cz = proj(bc).z;
+        const hull = convexHull(corners);
+        pick.hulls.push({ b, poly: hull, z: cz });
+
+        // Kanten-Stil
+        let col, lw, al;
+        if (b === viewBlock && fT < .5) { col = SEL_RGB; lw = 2.4; al = .95; }
+        else if (w === 1 || w === 2) { col = RGB[w]; lw = 1.6; al = .75; }
+        else if (active) { col = RGB[p]; lw = free ? 1.4 : 2.2; al = free ? .5 : .55 + .4 * pulse; }
+        else { col = '160,170,230'; lw = 1; al = .22; }
+        if (b === viewBlock && fT >= .5) { col = (w === 1 || w === 2) ? RGB[w] : (active ? RGB[p] : '160,170,230'); lw = 2; al = .7; }
+        al *= bA;
+        const glow = (b === viewBlock || (active && !free));
+        for (const e of EDGES) {
+            const a = corners[e[0]], c = corners[e[1]];
+            items.push({
+                z: (a.z + c.z) / 2 - .01, f() {
+                    ctx.lineCap = 'round';
+                    if (glow) { ctx.strokeStyle = `rgba(${col},${al * .25})`; ctx.lineWidth = lw * 3.5; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke(); }
+                    ctx.strokeStyle = `rgba(${col},${al})`; ctx.lineWidth = lw;
+                    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+                }
+            });
+        }
+        // Gewonnener Block: halbtransparente Hülle
+        if (w) {
+            const fillC = w === 3 ? '120,125,160' : RGB[w];
+            items.push({
+                z: cz, f() {
+                    ctx.fillStyle = `rgba(${fillC},${.2 * bA})`;
+                    ctx.beginPath(); hull.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.closePath(); ctx.fill();
+                }
+            });
+        }
+        // Felder
+        const cells = st.cells[b];
+        const cellScr = [];
+        for (let c = 0; c < 27; c++) {
+            const q = proj(cellPos(b, c));
+            if (!q) continue;
+            cellScr[c] = q;
+            const v = cells[c];
+            const isPend = pending && pending.b === b && pending.c === c;
+            const isLast = lm && lm[0] === b && lm[1] === c;
+            if (b === viewBlock) pick.cells.push({ c, x: q.x, y: q.y, r: Math.max(R * q.f * 1.4, 15), z: q.z });
+            if (v) {
+                const a = bA * (w && w !== v ? .4 : 1);
+                const rad = R * q.f;
+                items.push({
+                    z: q.z, f() {
+                        ctx.globalAlpha = a;
+                        ctx.drawImage(SPR[v], q.x - rad, q.y - rad, rad * 2, rad * 2);
+                        if (isLast) {
+                            ctx.strokeStyle = `rgba(255,255,255,${.6 + .4 * pulse})`; ctx.lineWidth = 2;
+                            ctx.beginPath(); ctx.arc(q.x, q.y, rad + 3 + pulse * 2, 0, Math.PI * 2); ctx.stroke();
+                        }
+                        ctx.globalAlpha = 1;
+                    }
+                });
+            } else if (isPend) {
+                const rad = R * q.f;
+                items.push({
+                    z: q.z, f() {
+                        ctx.globalAlpha = .45 + .3 * pulse;
+                        ctx.drawImage(SPR[p], q.x - rad, q.y - rad, rad * 2, rad * 2);
+                        ctx.globalAlpha = 1;
+                        ctx.strokeStyle = `rgba(${SEL_RGB},.95)`; ctx.lineWidth = 2.2;
+                        ctx.beginPath(); ctx.arc(q.x, q.y, rad + 3 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
+                    }
+                });
+            } else {
+                const playable = active && !w;
+                const dr = Math.max(1.6, (playable ? .13 - .03 * fT : .1 - .02 * fT) * q.f);
+                const spr = playable ? SPR['dot' + p] : SPR.dot;
+                const a = bA * (playable ? .8 - .15 * fT : (w ? .12 : .3));
+                items.push({
+                    z: q.z, f() {
+                        ctx.globalAlpha = a;
+                        ctx.drawImage(spr, q.x - dr, q.y - dr, dr * 2, dr * 2);
+                        ctx.globalAlpha = 1;
+                    }
+                });
+            }
+        }
+        // Gewinnreihe im Block
+        const bl = st.bLine[b];
+        if (bl && cellScr[bl[0]] && cellScr[bl[2]]) {
+            const a = cellScr[bl[0]], c = cellScr[bl[2]];
+            items.push({
+                z: (a.z + c.z) / 2 + .5, f() {
+                    ctx.strokeStyle = `rgba(${RGB[w]},${.9 * bA})`; ctx.lineCap = 'round';
+                    ctx.lineWidth = Math.max(2, .12 * (a.f + c.f) / 2);
+                    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+                }
+            });
+        }
+    }
+
+    items.sort((a, b) => a.z - b.z);
+    for (const it of items) it.f();
+
+    // Zielblock des vorgemerkten Zugs markieren (Übersicht)
+    if (pending && fT < .6 && isOpen(st, pending.c) && pending.c !== pending.b) {
+        const q = proj(blockCenter(pending.c));
+        if (q) {
+            ctx.globalAlpha = 1 - fT;
+            ctx.setLineDash([5, 5]); ctx.lineDashOffset = -ts / 40;
+            ctx.strokeStyle = `rgba(${SEL_RGB},.9)`; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(q.x, q.y, HALF * 1.55 * q.f, 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([]); ctx.globalAlpha = 1;
+        }
+    }
+    // Gewinnreihe im großen Würfel
+    if (st.metaLine) {
+        const a = proj(blockCenter(st.metaLine[0])), c = proj(blockCenter(st.metaLine[2]));
+        if (a && c) {
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = `rgba(255,255,255,${.25 + .2 * pulse})`; ctx.lineWidth = 14;
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+            ctx.strokeStyle = COL[st.winner]; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+        }
+    }
+}
+
+let lastTs = 0;
+function frame(ts) {
+    const dt = Math.min(64, ts - (lastTs || ts)); lastTs = ts;
+    const target = view3d === 'block' ? blockCenter(viewBlock) : [0, 0, 0];
+    const tsm = view3d === 'block' ? SM_BLOCK : 1;
+    const a = 1 - Math.pow(.0025, dt / 1000 * 1.6);
+    for (let i = 0; i < 3; i++) cam.c[i] += (target[i] - cam.c[i]) * a;
+    cam.sm += (tsm - cam.sm) * a;
+    if (!drag) {
+        cam.yaw += cam.vyaw * dt; cam.pitch += cam.vpitch * dt;
+        const d = Math.pow(.02, dt / 1000);
+        cam.vyaw *= d; cam.vpitch *= d;
+        if (Math.abs(cam.vyaw) < 1e-5) cam.vyaw = 0;
+        if (Math.abs(cam.vpitch) < 1e-5) cam.vpitch = 0;
+    }
+    cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch));
+    draw(ts);
+    requestAnimationFrame(frame);
+}
+
+/* ---------- Gesten: drehen, zoomen, antippen ---------- */
+const ptrs = new Map();
+let drag = false, tapStart = null, pinch0 = 0, zoom0 = 1, lastTap = { t: 0, b: -1 };
+function evPos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
+    const q = evPos(e);
+    ptrs.set(e.pointerId, { x: q.x, y: q.y, t: performance.now() });
+    drag = true; cam.vyaw = cam.vpitch = 0;
+    if (ptrs.size === 1) tapStart = { x: q.x, y: q.y, t: performance.now(), moved: 0 };
+    else { tapStart = null; const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = cam.zoom; }
+});
+cv.addEventListener('pointermove', e => {
+    const old = ptrs.get(e.pointerId);
+    if (!old) return;
+    const q = evPos(e), now = performance.now();
+    if (ptrs.size === 1) {
+        const dx = q.x - old.x, dy = q.y - old.y, dt = Math.max(1, now - old.t);
+        cam.yaw += dx * .0085; cam.pitch += dy * .0085;
+        cam.vyaw = dx * .0085 / dt; cam.vpitch = dy * .0085 / dt;
+        if (tapStart) tapStart.moved += Math.abs(dx) + Math.abs(dy);
+    }
+    ptrs.set(e.pointerId, { x: q.x, y: q.y, t: now });
+    if (ptrs.size === 2) {
+        const [a, b] = [...ptrs.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch0 > 10) cam.zoom = Math.max(.6, Math.min(4, zoom0 * d / pinch0));
+    }
+});
+function endPtr(e) {
+    if (!ptrs.has(e.pointerId)) return;
+    const q = evPos(e), now = performance.now(), last = ptrs.get(e.pointerId);
+    ptrs.delete(e.pointerId);
+    if (ptrs.size === 0) {
+        drag = false;
+        if (now - last.t > 90) cam.vyaw = cam.vpitch = 0;       // Finger stand still → kein Nachdrehen
+        if (tapStart && tapStart.moved < 10 && now - tapStart.t < 400) { cam.vyaw = cam.vpitch = 0; handleTap(q.x, q.y); }
+        tapStart = null;
+    } else if (ptrs.size === 1) {
+        const [a] = [...ptrs.values()]; a.t = performance.now();
+    }
+}
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.max(.6, Math.min(4, cam.zoom * Math.exp(-e.deltaY * .0015))); }, { passive: false });
+
+function handleTap(x, y) {
+    const now = performance.now();
+    if (view3d === 'block') {
+        // Feld im 3D-Block antippen
+        let best = null, bd = Infinity;
+        for (const c of pick.cells) {
+            const d = Math.hypot(c.x - x, c.y - y);
+            if (d < c.r && d - c.z * 2 < bd) { bd = d - c.z * 2; best = c; }
+        }
+        if (best) { tapCell(best.c); return; }
+        if (now - lastTap.t < 350) { view3d = 'all'; updateUI(); }
+        lastTap = { t: now, b: -1 };
+        return;
+    }
+    let hit = null;
+    for (const h of pick.hulls) if (inPoly(x, y, h.poly) && (!hit || h.z > hit.z)) hit = h;
+    if (!hit) { lastTap = { t: now, b: -1 }; return; }
+    if (now - lastTap.t < 350 && lastTap.b === hit.b) { view3d = 'block'; }
+    lastTap = { t: now, b: hit.b };
+    setView(hit.b);
+    updateUI();
+}
+
+/* =====================================================================
+   Start
+   ===================================================================== */
+load();
+updateUI();
+requestAnimationFrame(frame);
+if (aiTurn()) scheduleAI();
+try {
+    if (!localStorage.getItem(STORE + '_seen')) { openModal('#mHelp'); localStorage.setItem(STORE + '_seen', '1'); }
+} catch (e) { }
+if (st.winner) setTimeout(showWin, 400);
+
+})();
+</script>
+</body>
+</html>
