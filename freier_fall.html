@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Freier Fall">
 <meta name="format-detection" content="telephone=no">
-<title>Freier Fall – Stroboskop</title>
+<title>Freier Fall im Stroboskop</title>
 <style>
   :root {
     --bg: #eef1f5;
@@ -33,6 +33,7 @@
       --accent-hover: #6aa1f3;
       --accent-text: #0b1220;
       --accent-soft: rgba(75, 141, 240, 0.16);
+      color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
@@ -46,6 +47,7 @@
     --accent-hover: #6aa1f3;
     --accent-text: #0b1220;
     --accent-soft: rgba(75, 141, 240, 0.16);
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
@@ -236,6 +238,31 @@
   .nojs b { display: block; font-size: 1.05rem; margin-bottom: 4px; }
 
   #printArea { display: none; }
+  [hidden] { display: none !important; }
+
+  .sheet {
+    position: fixed; inset: 0; z-index: 20;
+    background: rgba(8, 12, 18, 0.6);
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 16px; overflow-y: auto;
+  }
+  .sheetInner {
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; width: 100%; max-width: 560px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .sheetHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .sheetHead b { font-size: 1.05rem; }
+  .sheetBtns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sheetInner .hint { margin: 0; }
+  #sheetImg {
+    width: 100%; height: auto; display: block;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: #fff;
+    -webkit-touch-callout: default;
+  }
+  .status.warn { color: #c2410c; font-weight: 600; }
 
   @media (max-width: 1100px) and (min-width: 701px) {
     .layout { grid-template-columns: minmax(0, 1fr) 300px; }
@@ -251,7 +278,7 @@
   @media print {
     @page { size: A4 portrait; margin: 10mm; }
     body { background: #fff; }
-    header, .layout { display: none !important; }
+    header, .layout, .sheet, .nojs { display: none !important; }
     #printArea { display: block; }
     #printArea img { display: block; margin: 0 auto; max-width: 100%; max-height: 275mm; }
   }
@@ -385,10 +412,9 @@
     <div class="group">
       <h2>Stroboskopbild ausgeben</h2>
       <div class="btns" style="margin-top:0">
-        <button id="btnPng">⤓ Bild speichern</button>
-        <button id="btnPrint">⎙ Drucken</button>
+        <button id="btnPng" style="grid-column: 1 / -1">Stroboskopbild anzeigen und speichern</button>
       </div>
-      <p class="hint">Ausgegeben wird das aktuelle Stroboskopbild mit Skala – z. B. als Vorlage für die Auswertung auf Papier.</p>
+      <p class="hint">Zeigt das aktuelle Stroboskopbild mit Skala als Bild – zum Speichern in Fotos/Dateien oder zum Ausdrucken für die Auswertung auf Papier.</p>
     </div>
 
     <div class="group">
@@ -409,6 +435,23 @@
     </div>
   </aside>
 </main>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheetInner">
+    <div class="sheetHead">
+      <b id="sheetTitle">Stroboskopbild</b>
+      <button id="btnSheetClose">Schließen</button>
+    </div>
+    <p class="hint">iPad: Bild mit dem Finger gedrückt halten und „Zu Fotos hinzufügen“ oder „Teilen“ wählen.
+      Computer: Rechtsklick auf das Bild und „Bild speichern unter …“.</p>
+    <div class="sheetBtns">
+      <button id="btnShare" hidden>Teilen / In Dateien sichern</button>
+      <button id="btnDownload">⤓ Als PNG herunterladen</button>
+      <button id="btnPrint">⎙ Drucken</button>
+    </div>
+    <img id="sheetImg" alt="Stroboskopbild mit Längenskala">
+  </div>
+</div>
 
 <div id="printArea"><img id="printImg" alt="Stroboskopbild"></div>
 
@@ -1053,7 +1096,7 @@
   $('chkSound').addEventListener('change', e => { state.sound = e.target.checked; if (state.sound) ensureAudio(); });
 
   document.addEventListener('keydown', e => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || !$('sheet').hidden) return;
     const tag = (e.target.tagName || '').toUpperCase();
     const formEl = ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'SUMMARY'].includes(tag);
     if (e.key === ' ' && !formEl) {
@@ -1127,42 +1170,70 @@
 
   function needsFall() {
     if (state.time > 0) return false;
-    alert('Bitte lass die Kugeln zuerst fallen – dann entsteht das Stroboskopbild.');
+    const st = $('status');
+    st.textContent = 'Bitte zuerst die Kugeln fallen lassen – dann entsteht das Stroboskopbild.';
+    st.classList.add('warn');
+    setTimeout(() => st.classList.remove('warn'), 2500);
     return true;
+  }
+
+  // In eingebetteten Ansichten (iframe) sind Downloads und Drucken meist gesperrt
+  let embedded = false;
+  try { embedded = window.self !== window.top; } catch (e) { embedded = true; }
+
+  let exportUrl = '';
+  const fileName = () => `stroboskop_freier_fall_dt_${fmt(state.dt, 2)}s.png`;
+  function exportFile() {
+    const bin = atob(exportUrl.split(',')[1]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    try { return new File([bytes], fileName(), { type: 'image/png' }); } catch (e) { return null; }
   }
 
   $('btnPng').addEventListener('click', () => {
     if (needsFall()) return;
-    const c = renderExport();
-    const name = `stroboskop_freier_fall_dt_${fmt(state.dt, 2)}s.png`;
-    // Blob synchron erzeugen, damit das Teilen-Menü noch als Reaktion auf den Tipp gilt
-    const bin = atob(c.toDataURL('image/png').split(',')[1]);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'image/png' });
-    let file = null;
-    try { file = new File([blob], name, { type: 'image/png' }); } catch (e) { file = null; }
-    const touch = navigator.maxTouchPoints > 0;
-    if (touch && file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: 'Stroboskopbild' }).catch(() => {});
-      return;
+    state.running = false;
+    updateUI();
+    exportUrl = renderExport().toDataURL('image/png');
+    $('sheetImg').src = exportUrl;
+    let canShare = false;
+    if (!embedded && navigator.canShare) {
+      const f = exportFile();
+      try { canShare = !!f && navigator.canShare({ files: [f] }); } catch (e) { canShare = false; }
     }
-    {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
-    }
+    $('btnShare').hidden = !canShare;
+    $('btnDownload').hidden = embedded;
+    $('btnPrint').hidden = embedded;
+    $('sheet').hidden = false;
+    $('btnSheetClose').focus();
+  });
+
+  const closeSheet = () => { $('sheet').hidden = true; };
+  $('btnSheetClose').addEventListener('click', closeSheet);
+  $('sheet').addEventListener('click', e => { if (e.target === $('sheet')) closeSheet(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
+  $('btnShare').addEventListener('click', () => {
+    const f = exportFile();
+    if (f) navigator.share({ files: [f], title: 'Stroboskopbild' }).catch(() => {});
+  });
+
+  $('btnDownload').addEventListener('click', () => {
+    const f = exportFile();
+    if (!f) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = fileName();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
   });
 
   $('btnPrint').addEventListener('click', () => {
-    if (needsFall()) return;
     const img = $('printImg');
     img.onload = null;
-    img.src = renderExport().toDataURL('image/png');
+    img.src = exportUrl;
     if (img.complete) window.print();
     else img.onload = () => { img.onload = null; window.print(); };
   });
