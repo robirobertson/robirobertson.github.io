@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Freier Fall">
+<meta name="format-detection" content="telephone=no">
 <title>Freier Fall – Stroboskop</title>
 <style>
   :root {
@@ -71,6 +75,7 @@
     gap: 12px;
     padding: 0 12px 12px;
     height: calc(100vh - 52px);
+    height: calc(100dvh - 52px);
   }
 
   .stage {
@@ -114,6 +119,10 @@
     display: block;
     touch-action: none;
     cursor: crosshair;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .panel {
@@ -137,7 +146,7 @@
     margin: 0 0 10px;
   }
 
-  .ballpick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ballpick { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
   .chip {
     display: flex; align-items: center; gap: 8px;
     border: 1px solid var(--border);
@@ -212,9 +221,27 @@
     background: var(--surface-2);
   }
 
+  button, select, label, summary, input { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  /* iOS zoomt bei Schriftgröße < 16 px in Auswahlfeldern automatisch hinein */
+  select { font-size: 16px; }
+  input[type="checkbox"] { width: 20px; height: 20px; flex: none; }
+  .check input { margin-top: 0; }
+  input[type="range"] { height: 28px; }
+
+  .nojs {
+    margin: 12px; padding: 14px 16px;
+    border: 2px solid #d0312d; border-radius: 10px;
+    background: #fff4f3; color: #5a1512;
+  }
+  .nojs b { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+
   #printArea { display: none; }
 
-  @media (max-width: 880px) {
+  @media (max-width: 1100px) and (min-width: 701px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 300px; }
+  }
+
+  @media (max-width: 700px) {
     header { height: auto; }
     .layout { grid-template-columns: 1fr; height: auto; }
     .stage { height: 82vh; min-height: 480px; }
@@ -231,6 +258,12 @@
 </style>
 </head>
 <body>
+
+<div class="nojs" id="nojs">
+  <b>Die Simulation kann in dieser Vorschau nicht laufen.</b>
+  Auf dem iPad bitte nicht in der Dateien-App oder der AirDrop-Vorschau öffnen, sondern über den Link in <b style="display:inline">Safari</b>
+  (bzw. im Teilen-Menü „In Safari öffnen“ wählen).
+</div>
 
 <header>
   <h1>Freier Fall – Stroboskop-Simulation</h1>
@@ -327,8 +360,18 @@
       </label>
       <label class="check">
         <input type="checkbox" id="chkLens" checked>
-        <span>Lupe zum genauen Ablesen<small>Maus über das Bild bewegen · Mausrad = Vergrößerung</small></span>
+        <span>Lupe zum genauen Ablesen<small>Mit dem Finger auf das Bild tippen und ziehen (am Computer: Maus bewegen)</small></span>
       </label>
+      <div class="field">
+        <span>Vergrößerung der Lupe</span>
+        <select id="selZoom">
+          <option value="3">3-fach</option>
+          <option value="4">4-fach</option>
+          <option value="6" selected>6-fach</option>
+          <option value="8">8-fach</option>
+          <option value="10">10-fach</option>
+        </select>
+      </div>
       <label class="check">
         <input type="checkbox" id="chkDark">
         <span>Fotomodus (dunkler Hintergrund)</span>
@@ -342,7 +385,7 @@
     <div class="group">
       <h2>Stroboskopbild ausgeben</h2>
       <div class="btns" style="margin-top:0">
-        <button id="btnPng">⤓ Als Bild speichern</button>
+        <button id="btnPng">⤓ Bild speichern</button>
         <button id="btnPrint">⎙ Drucken</button>
       </div>
       <p class="hint">Ausgegeben wird das aktuelle Stroboskopbild mit Skala – z. B. als Vorlage für die Auswertung auf Papier.</p>
@@ -372,6 +415,7 @@
 <script>
 (() => {
   'use strict';
+  document.getElementById('nojs').remove();
 
   // ---------- Physik ----------
   const G = 9.81;                 // m/s²
@@ -808,15 +852,18 @@
     pointer.inside = inside;
     if (state.lens) dirty = true;
   }
-  cv.addEventListener('pointermove', e => setPointer(e, e.pointerType === 'mouse' || e.buttons > 0 || e.pressure > 0));
+  cv.addEventListener('pointermove', e => {
+    if (e.pointerType === 'mouse' || e.buttons > 0 || e.pressure > 0) setPointer(e, true);
+  });
   cv.addEventListener('pointerdown', e => { setPointer(e, true); cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') { pointer.inside = false; dirty = true; } });
   cv.addEventListener('pointercancel', () => { pointer.inside = false; dirty = true; });
   cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { pointer.inside = false; dirty = true; } });
   cv.addEventListener('wheel', e => {
     if (!state.lens || !pointer.inside) return;
     e.preventDefault();
     state.lensZoom = Math.min(12, Math.max(2, state.lensZoom + (e.deltaY < 0 ? 1 : -1)));
+    const sel = $('selZoom');
+    if ([...sel.options].some(o => Number(o.value) === state.lensZoom)) sel.value = String(state.lensZoom);
     dirty = true;
   }, { passive: false });
 
@@ -1001,6 +1048,7 @@
   $('chkLines').addEventListener('change', e => { state.lines = e.target.checked; dirty = true; });
   $('chkClock').addEventListener('change', e => { state.clock = e.target.checked; updateUI(); });
   $('chkLens').addEventListener('change', e => { state.lens = e.target.checked; dirty = true; });
+  $('selZoom').addEventListener('change', e => { state.lensZoom = Number(e.target.value); dirty = true; });
   $('chkDark').addEventListener('change', e => { state.dark = e.target.checked; dirty = true; });
   $('chkSound').addEventListener('change', e => { state.sound = e.target.checked; if (state.sound) ensureAudio(); });
 
@@ -1086,22 +1134,37 @@
   $('btnPng').addEventListener('click', () => {
     if (needsFall()) return;
     const c = renderExport();
-    c.toBlob(blob => {
+    const name = `stroboskop_freier_fall_dt_${fmt(state.dt, 2)}s.png`;
+    // Blob synchron erzeugen, damit das Teilen-Menü noch als Reaktion auf den Tipp gilt
+    const bin = atob(c.toDataURL('image/png').split(',')[1]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'image/png' });
+    let file = null;
+    try { file = new File([blob], name, { type: 'image/png' }); } catch (e) { file = null; }
+    const touch = navigator.maxTouchPoints > 0;
+    if (touch && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Stroboskopbild' }).catch(() => {});
+      return;
+    }
+    {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `stroboskop_freier_fall_dt_${fmt(state.dt, 2)}s.png`;
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    }, 'image/png');
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    }
   });
 
   $('btnPrint').addEventListener('click', () => {
     if (needsFall()) return;
     const img = $('printImg');
-    img.onload = () => { img.onload = null; window.print(); };
+    img.onload = null;
     img.src = renderExport().toDataURL('image/png');
+    if (img.complete) window.print();
+    else img.onload = () => { img.onload = null; window.print(); };
   });
 
   // ---------- Start ----------
