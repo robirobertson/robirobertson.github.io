@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Freier Fall – Stroboskop</title>
+<style>
+  :root {
+    --bg: #eef1f5;
+    --surface: #ffffff;
+    --surface-2: #f5f7fa;
+    --text: #1b2230;
+    --muted: #5b6576;
+    --border: #d6dbe2;
+    --accent: #1d63d8;
+    --accent-hover: #1753b8;
+    --accent-text: #ffffff;
+    --accent-soft: rgba(29, 99, 216, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141b;
+      --surface: #171d26;
+      --surface-2: #1f2733;
+      --text: #e7ebf1;
+      --muted: #9aa5b5;
+      --border: #2d3746;
+      --accent: #4b8df0;
+      --accent-hover: #6aa1f3;
+      --accent-text: #0b1220;
+      --accent-soft: rgba(75, 141, 240, 0.16);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141b;
+    --surface: #171d26;
+    --surface-2: #1f2733;
+    --text: #e7ebf1;
+    --muted: #9aa5b5;
+    --border: #2d3746;
+    --accent: #4b8df0;
+    --accent-hover: #6aa1f3;
+    --accent-text: #0b1220;
+    --accent-soft: rgba(75, 141, 240, 0.16);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    height: 52px;
+  }
+  header h1 { font-size: 1.2rem; margin: 0; }
+  header .sub { color: var(--muted); font-size: 0.9rem; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 12px;
+    padding: 0 12px 12px;
+    height: calc(100vh - 52px);
+  }
+
+  .stage {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .statusbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .clock {
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 9.5ch;
+  }
+  .status { color: var(--muted); flex: 1; min-width: 150px; }
+  .lamp { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
+  .lamp .bulb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #6b7280; border: 1px solid rgba(0,0,0,0.3);
+    transition: background 0.04s, box-shadow 0.04s;
+  }
+  .lamp.on .bulb { background: #fff6b8; box-shadow: 0 0 10px 4px #ffe45c; }
+  .lamp.off { opacity: 0.45; }
+
+  .canvasWrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+  }
+
+  .panel {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+  .group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .group h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+
+  .ballpick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .chip {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .chip:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .chip input { margin: 0; accent-color: var(--accent); }
+  .chip small { display: block; color: var(--muted); font-size: 0.78rem; }
+  .dot { width: 20px; height: 20px; border-radius: 50%; flex: none; }
+  .dot.metal { background: radial-gradient(circle at 35% 32%, #ffffff, #d5dae1 25%, #7d8592 65%, #353a43); }
+  .dot.wood  { background: radial-gradient(circle at 35% 32%, #f7e0b5, #d9a066 35%, #a4682f 80%, #6e4219); }
+
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .btns .primary { grid-column: 1 / -1; }
+  button {
+    font: inherit;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  button.primary {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: transparent;
+    font-weight: 650;
+    font-size: 1.05rem;
+    padding: 11px;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+
+  .field { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; }
+  .field > span { flex: none; }
+  select {
+    font: inherit;
+    padding: 6px 8px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    min-width: 0;
+    max-width: 190px;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; cursor: pointer; }
+  .check input { margin-top: 3px; accent-color: var(--accent); }
+  .check small { display: block; color: var(--muted); font-size: 0.8rem; }
+  .hint { color: var(--muted); font-size: 0.82rem; margin: 8px 0 0; }
+
+  details summary { cursor: pointer; font-weight: 600; }
+  details table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 0.9rem; }
+  details td { padding: 3px 4px; border-bottom: 1px solid var(--border); }
+  details td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  details ul { padding-left: 18px; margin: 8px 0 0; font-size: 0.9rem; }
+  details li { margin-bottom: 4px; }
+  kbd {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.8rem;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0 4px;
+    background: var(--surface-2);
+  }
+
+  #printArea { display: none; }
+
+  @media (max-width: 880px) {
+    header { height: auto; }
+    .layout { grid-template-columns: 1fr; height: auto; }
+    .stage { height: 82vh; min-height: 480px; }
+    .panel { overflow: visible; }
+  }
+
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body { background: #fff; }
+    header, .layout { display: none !important; }
+    #printArea { display: block; }
+    #printArea img { display: block; margin: 0 auto; max-width: 100%; max-height: 275mm; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Freier Fall – Stroboskop-Simulation</h1>
+  <span class="sub">Stahlkugel und Holzkugel (d = 3,0 cm) fallen aus 2,00 m Höhe</span>
+</header>
+
+<main class="layout">
+  <section class="stage" aria-label="Simulation">
+    <div class="statusbar">
+      <div class="clock" id="clock">t = 0,000 s</div>
+      <div class="status" id="status">Bereit – die Kugeln hängen in der Halterung.</div>
+      <div class="lamp" id="lamp"><span class="bulb"></span><span id="lampText">Stroboskop 20 Hz</span></div>
+    </div>
+    <div class="canvasWrap" id="wrap">
+      <canvas id="cv" role="img" aria-label="Fallversuch mit Längenskala und Stroboskopbildern"></canvas>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="group">
+      <h2>Versuch</h2>
+      <div class="ballpick">
+        <label class="chip">
+          <input type="checkbox" id="chkMetal" checked>
+          <span class="dot metal"></span>
+          <span>Stahlkugel<small id="massMetal">m ≈ 111 g</small></span>
+        </label>
+        <label class="chip">
+          <input type="checkbox" id="chkWood" checked>
+          <span class="dot wood"></span>
+          <span>Holzkugel<small id="massWood">m ≈ 10 g</small></span>
+        </label>
+      </div>
+      <div class="btns">
+        <button class="primary" id="btnStart">▶ Kugeln loslassen</button>
+        <button id="btnStep" title="Einen Stroboskop-Zeitschritt (Δt) weiter">+Δt ⏭</button>
+        <button id="btnReset">↺ Zurücksetzen</button>
+      </div>
+      <div class="field">
+        <span>Zeitlupe</span>
+        <select id="selSlow">
+          <option value="1">Echtzeit (1 : 1)</option>
+          <option value="0.5">2× langsamer</option>
+          <option value="0.25" selected>4× langsamer</option>
+          <option value="0.1">10× langsamer</option>
+          <option value="0.05">20× langsamer</option>
+        </select>
+      </div>
+      <div class="field" style="flex-direction:column; align-items:stretch; gap:4px">
+        <span>Zeit-Regler</span>
+        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Zeit-Regler">
+      </div>
+      <label class="check">
+        <input type="checkbox" id="chkDrag">
+        <span>Luftwiderstand berücksichtigen<small>aus = idealer freier Fall (wie im Vakuum)</small></span>
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>Stroboskop</h2>
+      <label class="check" style="margin-top:0">
+        <input type="checkbox" id="chkStrobe" checked>
+        <span>Stroboskopbilder aufnehmen</span>
+      </label>
+      <div class="field">
+        <span>Zeitabstand Δt</span>
+        <select id="selDt">
+          <option value="0.02">0,02 s (50 Hz)</option>
+          <option value="0.04">0,04 s (25 Hz)</option>
+          <option value="0.05" selected>0,05 s (20 Hz)</option>
+          <option value="0.1">0,10 s (10 Hz)</option>
+        </select>
+      </div>
+      <div class="field">
+        <span>Beschriftung</span>
+        <select id="selLabel">
+          <option value="n" selected>Bildnummer n</option>
+          <option value="t">Zeitpunkt t</option>
+          <option value="none">keine</option>
+        </select>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="chkLines" checked>
+        <span>Hilfslinien zur Skala</span>
+      </label>
+      <p class="hint">Bild n entsteht zum Zeitpunkt t = n · Δt (Bild 0 beim Loslassen). Der rote Punkt markiert den Kugelmittelpunkt.</p>
+    </div>
+
+    <div class="group">
+      <h2>Darstellung</h2>
+      <label class="check" style="margin-top:0">
+        <input type="checkbox" id="chkClock" checked>
+        <span>Stoppuhr anzeigen</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="chkLens" checked>
+        <span>Lupe zum genauen Ablesen<small>Maus über das Bild bewegen · Mausrad = Vergrößerung</small></span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="chkDark">
+        <span>Fotomodus (dunkler Hintergrund)</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="chkSound" checked>
+        <span>Aufprallgeräusch</span>
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>Stroboskopbild ausgeben</h2>
+      <div class="btns" style="margin-top:0">
+        <button id="btnPng">⤓ Als Bild speichern</button>
+        <button id="btnPrint">⎙ Drucken</button>
+      </div>
+      <p class="hint">Ausgegeben wird das aktuelle Stroboskopbild mit Skala – z. B. als Vorlage für die Auswertung auf Papier.</p>
+    </div>
+
+    <div class="group">
+      <details>
+        <summary>Versuchsdaten und Hinweise</summary>
+        <table>
+          <tr><td>Durchmesser beider Kugeln</td><td>3,0 cm</td></tr>
+          <tr><td>Masse Stahlkugel (ρ = 7,85 g/cm³)</td><td id="tdMetal">111 g</td></tr>
+          <tr><td>Masse Holzkugel (Buche, ρ = 0,72 g/cm³)</td><td id="tdWood">10 g</td></tr>
+          <tr><td>Fallstrecke bis zum Boden</td><td>2,00 m</td></tr>
+        </table>
+        <ul>
+          <li>Die Skala zeigt die Fallstrecke s in cm. Der Nullpunkt liegt an der Startposition des Kugelmittelpunkts.</li>
+          <li>Abgelesen wird immer am Kugelmittelpunkt (roter Punkt).</li>
+          <li>Tastatur: <kbd>Leertaste</kbd> Start/Pause, <kbd>→</kbd> +Δt, <kbd>R</kbd> Zurücksetzen.</li>
+        </ul>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<div id="printArea"><img id="printImg" alt="Stroboskopbild"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Physik ----------
+  const G = 9.81;                 // m/s²
+  const R = 0.015;                // Kugelradius in m
+  const DROP = 2.00;              // Fallstrecke in m
+  const FLOOR_S = DROP + R;       // Boden (Unterkante der Kugel beim Aufprall)
+  const RHO_AIR = 1.204, CW = 0.47;
+  const AREA = Math.PI * R * R;
+  const VOL = 4 / 3 * Math.PI * R ** 3;
+
+  const BALLS = {
+    metal: { name: 'Stahlkugel', rho: 7850, side: -1 },
+    wood:  { name: 'Holzkugel',  rho: 720,  side:  1 }
+  };
+  for (const b of Object.values(BALLS)) b.m = b.rho * VOL;
+
+  function simulate(ball, drag) {
+    if (!drag) {
+      const tLand = Math.sqrt(2 * DROP / G);
+      return { tLand, pos: t => t <= 0 ? 0 : t >= tLand ? DROP : 0.5 * G * t * t };
+    }
+    // Newton-Reibung, RK4
+    const h = 1e-4;
+    const c = 0.5 * RHO_AIR * CW * AREA / ball.m;
+    const acc = v => G - c * v * Math.abs(v);
+    const arr = [0];
+    let s = 0, v = 0, tLand = 0;
+    for (let i = 1; i < 200000; i++) {
+      const k1s = v,                k1v = acc(v);
+      const k2s = v + h / 2 * k1v,  k2v = acc(v + h / 2 * k1v);
+      const k3s = v + h / 2 * k2v,  k3v = acc(v + h / 2 * k2v);
+      const k4s = v + h * k3v,      k4v = acc(v + h * k3v);
+      const sNew = s + h / 6 * (k1s + 2 * k2s + 2 * k3s + k4s);
+      v += h / 6 * (k1v + 2 * k2v + 2 * k3v + k4v);
+      arr.push(sNew);
+      if (sNew >= DROP) {
+        tLand = (i - 1 + (DROP - s) / (sNew - s)) * h;
+        break;
+      }
+      s = sNew;
+    }
+    return {
+      tLand,
+      pos(t) {
+        if (t <= 0) return 0;
+        if (t >= tLand) return DROP;
+        const f = t / h, i = Math.floor(f);
+        return Math.min(DROP, arr[i] + (arr[i + 1] - arr[i]) * (f - i));
+      }
+    };
+  }
+
+  // ---------- Zustand ----------
+  const state = {
+    active: { metal: true, wood: true },
+    drag: false,
+    time: 0,
+    running: false,
+    slow: 0.25,
+    strobeOn: true,
+    dt: 0.05,
+    label: 'n',
+    lines: true,
+    clock: true,
+    lens: true,
+    lensZoom: 6,
+    dark: false,
+    sound: true
+  };
+  let traj = {};
+  function computeTraj() {
+    traj = { metal: simulate(BALLS.metal, state.drag), wood: simulate(BALLS.wood, state.drag) };
+  }
+  computeTraj();
+
+  const activeKeys = () => Object.keys(BALLS).filter(k => state.active[k]);
+  const tMax = () => Math.max(...activeKeys().map(k => traj[k].tLand));
+  const released = () => state.time > 0 || state.running;
+
+  // ---------- Weltkoordinaten ----------
+  // x in m (0 = Mitte der Skala), s in m nach unten (0 = Startposition Kugelmittelpunkt)
+  const S_TOP = -0.18, S_BOT = 2.07;
+  const WORLD_W = 0.80;
+  const RULER_W = 0.11, RULER_TOP = -0.05;
+  const BAR_TOP = -0.08, BAR_BOT = -0.065;
+
+  const PAL_LIGHT = {
+    bg: '#fbfaf7', text: '#1b2230', muted: '#5b6576',
+    floor: '#cfd4db', floorLine: '#4f5764', hatch: 'rgba(60,66,76,0.35)',
+    ruler: '#f6e7a8', rulerEdge: '#8a7a3a', tick: '#1b1b1b',
+    holder: '#8a939e', holderEdge: '#4a525d',
+    guide: 'rgba(29,99,216,0.75)', center: '#d0312d'
+  };
+  const PAL_DARK = {
+    bg: '#07090d', text: '#e7ebf1', muted: '#9aa5b5',
+    floor: '#262c34', floorLine: '#8892a0', hatch: 'rgba(200,210,225,0.18)',
+    ruler: '#e9dc9d', rulerEdge: '#b3a35a', tick: '#111111',
+    holder: '#5d6672', holderEdge: '#a3acb8',
+    guide: 'rgba(120,170,255,0.8)', center: '#ff4d4d'
+  };
+
+  const fmt = (x, d) => x.toFixed(d).replace('.', ',');
+  const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+
+  // ---------- Zeichnen ----------
+  function drawBall(ctx, cx, cy, r, kind, alpha, v) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.05, cx, cy, r);
+    if (kind === 'metal') {
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(0.25, '#d5dae1');
+      g.addColorStop(0.65, '#7d8592');
+      g.addColorStop(1, '#353a43');
+    } else {
+      g.addColorStop(0, '#f7e0b5');
+      g.addColorStop(0.35, '#d9a066');
+      g.addColorStop(0.8, '#a4682f');
+      g.addColorStop(1, '#6e4219');
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+    if (kind === 'wood' && r > 7) {
+      ctx.save();
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(95,52,15,0.35)';
+      ctx.lineWidth = Math.max(0.6, r * 0.05);
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.ellipse(cx + r * 0.9, cy + i * r * 0.33, r * 1.3, r * 0.22 + Math.abs(i) * r * 0.05, -0.15, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.lineWidth = Math.max(0.6, r * 0.07);
+    ctx.strokeStyle = kind === 'metal' ? '#2a2f36' : '#5a3412';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // Mittelpunkt
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = v.pal.center;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1.1 * v.lw, r * 0.17), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawScene(ctx, v) {
+    const c = v.pal;
+    const X = x => v.ox + x * v.k;
+    const Y = s => v.oy + s * v.k;
+    const L = px => px * v.lw;
+    const T = px => px * v.ts;
+
+    // Boden
+    ctx.fillStyle = c.floor;
+    ctx.fillRect(X(-3), Y(FLOOR_S), 6 * v.k, 3 * v.k);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(X(-3), Y(FLOOR_S), 6 * v.k, 3 * v.k);
+    ctx.clip();
+    ctx.strokeStyle = c.hatch;
+    ctx.lineWidth = L(1);
+    ctx.beginPath();
+    for (let x = -1.2; x <= 1.2; x += 0.025) {
+      ctx.moveTo(X(x), Y(FLOOR_S + 0.06));
+      ctx.lineTo(X(x + 0.06), Y(FLOOR_S));
+    }
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = c.floorLine;
+    ctx.lineWidth = L(2);
+    ctx.beginPath();
+    ctx.moveTo(X(-3), Y(FLOOR_S));
+    ctx.lineTo(X(3), Y(FLOOR_S));
+    ctx.stroke();
+
+    // Stativ
+    ctx.fillStyle = c.holder;
+    ctx.strokeStyle = c.holderEdge;
+    ctx.lineWidth = L(1);
+    const rodX = v.colX + 0.165;
+    ctx.fillRect(X(rodX), Y(-0.11), 0.014 * v.k, (FLOOR_S + 0.11) * v.k);
+    ctx.strokeRect(X(rodX), Y(-0.11), 0.014 * v.k, (FLOOR_S + 0.11) * v.k);
+    ctx.fillRect(X(rodX - 0.018), Y(FLOOR_S - 0.012), 0.05 * v.k, 0.012 * v.k);
+    const barL = -v.colX - 0.10;
+    ctx.fillRect(X(barL), Y(BAR_TOP), (rodX + 0.014 - barL) * v.k, (BAR_BOT - BAR_TOP) * v.k);
+    ctx.strokeRect(X(barL), Y(BAR_TOP), (rodX + 0.014 - barL) * v.k, (BAR_BOT - BAR_TOP) * v.k);
+
+    // Längenskala
+    const rx0 = X(-RULER_W / 2), rx1 = X(RULER_W / 2);
+    ctx.fillStyle = c.ruler;
+    ctx.fillRect(rx0, Y(RULER_TOP), RULER_W * v.k, (FLOOR_S - RULER_TOP) * v.k);
+    ctx.strokeStyle = c.rulerEdge;
+    ctx.lineWidth = L(1);
+    ctx.strokeRect(rx0, Y(RULER_TOP), RULER_W * v.k, (FLOOR_S - RULER_TOP) * v.k);
+
+    const pxPerMm = v.k * 0.001;
+    const step = pxPerMm >= 1.8 ? 1 : pxPerMm * 5 >= 3.5 ? 5 : 10;
+    const smallLabels = v.k * 0.01 >= 12 * v.ts;
+    const mmA = Math.max(0, Math.ceil((v.sMin - 0.02) * 1000 / step) * step);
+    const mmB = Math.min(2010, Math.floor((v.sMax + 0.02) * 1000));
+    ctx.strokeStyle = c.tick;
+    ctx.fillStyle = c.tick;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let mm = mmA; mm <= mmB; mm += step) {
+      let len, w;
+      if (mm % 100 === 0)      { len = 0.026; w = 1.5; }
+      else if (mm % 50 === 0)  { len = 0.019; w = 1.1; }
+      else if (mm % 10 === 0)  { len = 0.012; w = 0.9; }
+      else if (mm % 5 === 0)   { len = 0.008; w = 0.6; }
+      else                     { len = 0.005; w = 0.5; }
+      const y = Y(mm / 1000);
+      ctx.lineWidth = L(w);
+      ctx.beginPath();
+      ctx.moveTo(rx0, y); ctx.lineTo(rx0 + len * v.k, y);
+      ctx.moveTo(rx1, y); ctx.lineTo(rx1 - len * v.k, y);
+      ctx.stroke();
+      if (smallLabels && mm % 10 === 0) {
+        // Lupe: Zentimeterzahlen an beiden Rändern, damit sie im Ausschnitt sichtbar sind
+        const big = mm % 100 === 0;
+        const fs = T(big ? 9.5 : 8);
+        const txt = String(mm / 10);
+        ctx.font = `${big ? 700 : 500} ${fs}px ${FONT}`;
+        const tw = ctx.measureText(txt).width + fs * 0.35;
+        for (const [xa, al] of [[rx0 + 0.014 * v.k, 'left'], [rx1 - 0.014 * v.k, 'right']]) {
+          ctx.fillStyle = c.ruler;
+          ctx.fillRect(al === 'left' ? xa : xa - tw, y - fs * 0.55, tw, fs * 1.1);
+          ctx.fillStyle = c.tick;
+          ctx.textAlign = al;
+          ctx.fillText(txt, al === 'left' ? xa + fs * 0.17 : xa - fs * 0.17, y);
+        }
+        ctx.textAlign = 'center';
+      } else if (mm % 100 === 0) {
+        const fs = T(11.5);
+        const txt = String(mm / 10);
+        ctx.font = `700 ${fs}px ${FONT}`;
+        const tw = ctx.measureText(txt).width + fs * 0.35;
+        ctx.fillStyle = c.ruler;
+        ctx.fillRect(X(0) - tw / 2, y - fs * 0.55, tw, fs * 1.1);
+        ctx.fillStyle = c.tick;
+        ctx.fillText(txt, X(0), y);
+      }
+    }
+    ctx.font = `600 ${T(9)}px ${FONT}`;
+    ctx.fillText('s in cm', X(0), Y(RULER_TOP + 0.022));
+
+    // Kugeln
+    for (const key of Object.keys(BALLS)) {
+      const b = BALLS[key];
+      const on = state.active[key];
+      const tr = traj[key];
+      const bx = b.side * v.colX;
+      const cx = X(bx);
+      const r = R * v.k;
+
+      // Überschrift
+      ctx.globalAlpha = on ? 1 : 0.35;
+      ctx.fillStyle = c.text;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `700 ${T(13)}px ${FONT}`;
+      ctx.fillText(b.name, cx, Y(-0.148));
+      ctx.fillStyle = c.muted;
+      ctx.font = `400 ${T(10)}px ${FONT}`;
+      ctx.fillText(`d = 3,0 cm · m ≈ ${Math.round(b.m * 1000)} g`, cx, Y(-0.108));
+      ctx.globalAlpha = 1;
+
+      if (on) {
+        if (released() && state.strobeOn) {
+          const tEnd = Math.min(state.time, tr.tLand);
+          const N = Math.floor(tEnd / state.dt + 1e-7);
+          const pts = [];
+          for (let n = 0; n <= N; n++) pts.push(tr.pos(n * state.dt));
+
+          if (state.lines) {
+            ctx.save();
+            ctx.strokeStyle = c.guide;
+            ctx.lineWidth = L(0.9);
+            ctx.setLineDash([L(4), L(3)]);
+            const xr = X(-b.side * RULER_W / 2);
+            ctx.beginPath();
+            for (const s of pts) {
+              ctx.moveTo(cx, Y(s));
+              ctx.lineTo(xr, Y(s));
+            }
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          for (const s of pts) drawBall(ctx, cx, Y(s), r, key, 0.78, v);
+
+          if (state.label !== 'none') {
+            const fs = T(10.5);
+            ctx.font = `600 ${fs}px ${FONT}`;
+            ctx.fillStyle = c.text;
+            ctx.textAlign = b.side < 0 ? 'right' : 'left';
+            ctx.textBaseline = 'middle';
+            const lx = X(bx + b.side * (R + 0.026));
+            const txtOf = n => state.label === 'n' ? String(n) : `${fmt(n * state.dt, 2)} s`;
+            const shift = b.side * (ctx.measureText(txtOf(pts.length - 1)).width + fs * 0.7);
+            // zwei Spalten: liegen Bilder zu dicht, wird die Beschriftung nach außen versetzt
+            const lastY = [-Infinity, -Infinity];
+            pts.forEach((s, n) => {
+              const y = Y(s);
+              const lane = y - lastY[0] >= fs * 1.05 ? 0 : y - lastY[1] >= fs * 1.05 ? 1 : -1;
+              if (lane < 0) return;
+              lastY[lane] = y;
+              ctx.fillText(txtOf(n), lx + lane * shift, y);
+            });
+          }
+        }
+        const sNow = released() ? tr.pos(state.time) : 0;
+        drawBall(ctx, cx, Y(sNow), r, key, 1, v);
+      }
+
+      // Halteklammer
+      const open = released() ? 0.011 : 0;
+      ctx.fillStyle = c.holder;
+      ctx.strokeStyle = c.holderEdge;
+      ctx.lineWidth = L(0.8);
+      for (const side of [-1, 1]) {
+        const xi = bx + side * (R + 0.002 + open);
+        const xo = xi + side * 0.005;
+        ctx.beginPath();
+        ctx.moveTo(X(xi), Y(BAR_BOT));
+        ctx.lineTo(X(xi), Y(0.004));
+        ctx.lineTo(X(xi - side * 0.0045), Y(0.006));
+        ctx.lineTo(X(xi - side * 0.0045), Y(0.011));
+        ctx.lineTo(X(xo), Y(0.011));
+        ctx.lineTo(X(xo), Y(BAR_BOT));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+  }
+
+  // ---------- Canvas ----------
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const wrap = document.getElementById('wrap');
+  let cssW = 0, cssH = 0, dpr = 1;
+  let dirty = true;
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    cssW = wrap.clientWidth;
+    cssH = wrap.clientHeight;
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    dirty = true;
+  }
+  new ResizeObserver(resize).observe(wrap);
+
+  function mainView() {
+    const k = Math.min(cssH / (S_BOT - S_TOP), cssW / WORLD_W);
+    const f = Math.max(k / 420, 0.7);
+    const ts = Math.max(k / 330, 0.85);
+    const oy = (cssH - (S_BOT - S_TOP) * k) / 2 - S_TOP * k;
+    const halfW = cssW / k / 2;
+    const colX = Math.min(0.42, Math.max(0.20, halfW * 0.42));
+    return {
+      k, ox: cssW / 2, oy, lw: f, ts, colX,
+      sMin: -oy / k, sMax: (cssH - oy) / k,
+      pal: state.dark ? PAL_DARK : PAL_LIGHT
+    };
+  }
+
+  const pointer = { inside: false, x: 0, y: 0, touch: false };
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const v = mainView();
+    ctx.fillStyle = v.pal.bg;
+    ctx.fillRect(0, 0, cssW, cssH);
+    drawScene(ctx, v);
+
+    if (state.lens && pointer.inside) {
+      const rad = Math.max(70, Math.min(115, cssW * 0.17));
+      const px = pointer.x, py = pointer.y;
+      const cx = px;
+      const cy = pointer.touch ? Math.max(rad + 4, py - rad - 40) : py;
+      const mag = state.lensZoom;
+      const k2 = v.k * mag;
+      const wx = (px - v.ox) / v.k, ws = (py - v.oy) / v.k;
+      const lv = {
+        k: k2, ox: cx - wx * k2, oy: cy - ws * k2,
+        lw: v.lw * 1.4, ts: v.ts * 1.3, colX: v.colX,
+        sMin: ws - rad / k2, sMax: ws + rad / k2,
+        pal: v.pal
+      };
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = v.pal.bg;
+      ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+      drawScene(ctx, lv);
+      // Ablese-Linie
+      ctx.strokeStyle = 'rgba(208,49,45,0.85)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - rad, cy + 0.5);
+      ctx.lineTo(cx + rad, cy + 0.5);
+      ctx.stroke();
+      ctx.restore();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = state.dark ? '#cfd6e0' : '#2b3340';
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.font = `700 12px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const tag = `× ${mag}`;
+      const tw = ctx.measureText(tag).width + 12;
+      ctx.fillStyle = state.dark ? '#cfd6e0' : '#2b3340';
+      ctx.fillRect(cx - tw / 2, cy + rad - 9, tw, 18);
+      ctx.fillStyle = state.dark ? '#0b0e14' : '#ffffff';
+      ctx.fillText(tag, cx, cy + rad);
+    }
+  }
+
+  function setPointer(e, inside) {
+    const rect = cv.getBoundingClientRect();
+    pointer.x = e.clientX - rect.left;
+    pointer.y = e.clientY - rect.top;
+    pointer.touch = e.pointerType === 'touch' || e.pointerType === 'pen';
+    pointer.inside = inside;
+    if (state.lens) dirty = true;
+  }
+  cv.addEventListener('pointermove', e => setPointer(e, e.pointerType === 'mouse' || e.buttons > 0 || e.pressure > 0));
+  cv.addEventListener('pointerdown', e => { setPointer(e, true); cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') { pointer.inside = false; dirty = true; } });
+  cv.addEventListener('pointercancel', () => { pointer.inside = false; dirty = true; });
+  cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { pointer.inside = false; dirty = true; } });
+  cv.addEventListener('wheel', e => {
+    if (!state.lens || !pointer.inside) return;
+    e.preventDefault();
+    state.lensZoom = Math.min(12, Math.max(2, state.lensZoom + (e.deltaY < 0 ? 1 : -1)));
+    dirty = true;
+  }, { passive: false });
+
+  // ---------- Ton ----------
+  let actx = null;
+  function ensureAudio() {
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) { actx = null; }
+  }
+  function playImpact(kind) {
+    if (!state.sound || !actx) return;
+    const t = actx.currentTime;
+    const len = 0.15;
+    const buf = actx.createBuffer(1, Math.floor(actx.sampleRate * len), actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (actx.sampleRate * 0.018));
+    const noise = actx.createBufferSource();
+    noise.buffer = buf;
+    const bp = actx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = kind === 'metal' ? 2600 : 900;
+    bp.Q.value = kind === 'metal' ? 6 : 2;
+    const ng = actx.createGain();
+    ng.gain.value = 0.9;
+    noise.connect(bp).connect(ng).connect(actx.destination);
+    noise.start(t);
+
+    const osc = actx.createOscillator();
+    osc.type = kind === 'metal' ? 'sine' : 'triangle';
+    osc.frequency.value = kind === 'metal' ? 1750 : 380;
+    const og = actx.createGain();
+    const dec = kind === 'metal' ? 0.35 : 0.07;
+    og.gain.setValueAtTime(0.25, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + dec);
+    osc.connect(og).connect(actx.destination);
+    osc.start(t);
+    osc.stop(t + dec + 0.02);
+  }
+  function playClick() {
+    if (!state.sound || !actx) return;
+    const t = actx.currentTime;
+    const osc = actx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = 1200;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    osc.connect(g).connect(actx.destination);
+    osc.start(t);
+    osc.stop(t + 0.04);
+  }
+
+  // ---------- Ablauf ----------
+  let lampUntil = 0;
+  function flashLamp() { lampUntil = performance.now() + 70; }
+
+  function advance(t0, t1) {
+    for (const k of activeKeys()) {
+      const tl = traj[k].tLand;
+      if (t0 < tl && t1 >= tl) playImpact(k);
+    }
+    if (state.strobeOn && Math.floor(t1 / state.dt + 1e-7) > Math.floor(t0 / state.dt + 1e-7)) flashLamp();
+  }
+
+  function start() {
+    ensureAudio();
+    if (state.time >= tMax() - 1e-9) state.time = 0;
+    if (state.time === 0) {
+      playClick();
+      if (state.strobeOn) flashLamp();
+    }
+    state.running = true;
+    dirty = true;
+    updateUI();
+  }
+  function pause() { state.running = false; dirty = true; updateUI(); }
+  function reset() { state.running = false; state.time = 0; dirty = true; updateUI(); }
+  function step() {
+    ensureAudio();
+    const tm = tMax();
+    if (state.time >= tm - 1e-9) return;
+    state.running = false;
+    const t0 = state.time;
+    const t1 = Math.min(tm, (Math.floor(t0 / state.dt + 1e-7) + 1) * state.dt);
+    if (t0 === 0) playClick();
+    advance(t0, t1);
+    state.time = t1;
+    dirty = true;
+    updateUI();
+  }
+
+  let last = 0;
+  function frame(ts) {
+    const realDt = last ? Math.min((ts - last) / 1000, 0.05) : 0;
+    last = ts;
+    if (state.running) {
+      const tm = tMax();
+      const t0 = state.time;
+      let t1 = t0 + realDt * state.slow;
+      if (t1 >= tm) { t1 = tm; state.running = false; }
+      advance(t0, t1);
+      state.time = t1;
+      dirty = true;
+      updateUI();
+    }
+    lampEl.classList.toggle('on', ts < lampUntil);
+    if (dirty) { draw(); dirty = false; }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Bedienoberfläche ----------
+  const $ = id => document.getElementById(id);
+  const lampEl = $('lamp');
+  const btnStart = $('btnStart');
+  const scrub = $('scrub');
+
+  function updateUI() {
+    const tm = tMax();
+    const done = state.time >= tm - 1e-9;
+    if (state.running) btnStart.textContent = '⏸ Pause';
+    else if (state.time === 0) btnStart.textContent = '▶ Kugeln loslassen';
+    else if (done) btnStart.textContent = '▶ Noch einmal fallen lassen';
+    else btnStart.textContent = '▶ Weiter';
+
+    $('clock').textContent = state.clock ? `t = ${fmt(state.time, 3)} s` : 't = –,––– s';
+
+    const keys = activeKeys();
+    const both = keys.length === 2;
+    let st;
+    if (state.time === 0 && !state.running) {
+      st = both ? 'Bereit – die Kugeln hängen in der Halterung.' : 'Bereit – die Kugel hängt in der Halterung.';
+    } else if (done) {
+      st = both ? 'Beide Kugeln sind auf dem Boden aufgekommen.' : 'Die Kugel ist auf dem Boden aufgekommen.';
+    } else if (state.running) {
+      st = both ? 'Die Kugeln fallen …' : 'Die Kugel fällt …';
+    } else {
+      st = 'Angehalten.';
+    }
+    $('status').textContent = st;
+
+    scrub.value = String(Math.round(state.time / tm * 1000));
+    $('lampText').textContent = state.strobeOn
+      ? `Stroboskop ${fmt(1 / state.dt, 0)} Hz`
+      : 'Stroboskop aus';
+    lampEl.classList.toggle('off', !state.strobeOn);
+  }
+
+  btnStart.addEventListener('click', () => state.running ? pause() : start());
+  $('btnReset').addEventListener('click', reset);
+  $('btnStep').addEventListener('click', step);
+
+  scrub.addEventListener('input', () => {
+    state.running = false;
+    state.time = Number(scrub.value) / 1000 * tMax();
+    dirty = true;
+    updateUI();
+  });
+
+  function bindBall(id, key) {
+    const el = $(id);
+    el.addEventListener('change', () => {
+      state.active[key] = el.checked;
+      if (activeKeys().length === 0) {
+        // mindestens eine Kugel muss ausgewählt bleiben
+        state.active[key] = true;
+        el.checked = true;
+        return;
+      }
+      reset();
+    });
+  }
+  bindBall('chkMetal', 'metal');
+  bindBall('chkWood', 'wood');
+
+  $('chkDrag').addEventListener('change', e => { state.drag = e.target.checked; computeTraj(); reset(); });
+  $('selSlow').addEventListener('change', e => { state.slow = Number(e.target.value); });
+  $('chkStrobe').addEventListener('change', e => { state.strobeOn = e.target.checked; dirty = true; updateUI(); });
+  $('selDt').addEventListener('change', e => { state.dt = Number(e.target.value); dirty = true; updateUI(); });
+  $('selLabel').addEventListener('change', e => { state.label = e.target.value; dirty = true; });
+  $('chkLines').addEventListener('change', e => { state.lines = e.target.checked; dirty = true; });
+  $('chkClock').addEventListener('change', e => { state.clock = e.target.checked; updateUI(); });
+  $('chkLens').addEventListener('change', e => { state.lens = e.target.checked; dirty = true; });
+  $('chkDark').addEventListener('change', e => { state.dark = e.target.checked; dirty = true; });
+  $('chkSound').addEventListener('change', e => { state.sound = e.target.checked; if (state.sound) ensureAudio(); });
+
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (e.target.tagName || '').toUpperCase();
+    const formEl = ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'SUMMARY'].includes(tag);
+    if (e.key === ' ' && !formEl) {
+      e.preventDefault();
+      state.running ? pause() : start();
+    } else if (e.key === 'ArrowRight' && !(formEl && tag !== 'BUTTON')) {
+      e.preventDefault();
+      step();
+    } else if ((e.key === 'r' || e.key === 'R') && tag !== 'TEXTAREA') {
+      reset();
+    }
+  });
+
+  // Massen anzeigen
+  const g = b => `m ≈ ${Math.round(b.m * 1000)} g`;
+  $('massMetal').textContent = g(BALLS.metal);
+  $('massWood').textContent = g(BALLS.wood);
+  $('tdMetal').textContent = `${Math.round(BALLS.metal.m * 1000)} g`;
+  $('tdWood').textContent = `${Math.round(BALLS.wood.m * 1000)} g`;
+
+  // ---------- Export / Druck ----------
+  function renderExport() {
+    const k = 1200;
+    const f = k / 420;
+    const headH = Math.round(0.14 * k);
+    const footH = Math.round(0.07 * k);
+    const W = Math.round(WORLD_W * k);
+    const H = Math.round(headH + (S_BOT - S_TOP) * k + footH);
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ffffff';
+    x.fillRect(0, 0, W, H);
+
+    const v = {
+      k, ox: W / 2, oy: headH - S_TOP * k, lw: f, ts: f, colX: 0.20,
+      sMin: S_TOP - 0.1, sMax: S_BOT + 0.1,
+      pal: Object.assign({}, PAL_LIGHT, { bg: '#ffffff' })
+    };
+    x.save();
+    x.beginPath();
+    x.rect(0, headH, W, H - headH - footH);
+    x.clip();
+    drawScene(x, v);
+    x.restore();
+
+    const names = activeKeys().map(k2 => BALLS[k2].name).join(' und ');
+    x.fillStyle = '#1b2230';
+    x.textBaseline = 'alphabetic';
+    x.textAlign = 'left';
+    x.font = `700 ${36 * f / 2.86}px ${FONT}`;
+    x.fillText('Stroboskopaufnahme – Freier Fall', 0.03 * k, 0.05 * k);
+    x.font = `400 ${25 * f / 2.86}px ${FONT}`;
+    const strobeTxt = state.strobeOn
+      ? `Zeitabstand Δt = ${fmt(state.dt, 2)} s (f = ${fmt(1 / state.dt, 0)} Hz)`
+      : 'Stroboskop aus';
+    x.fillText(`${names} · d = 3,0 cm · ${strobeTxt}`, 0.03 * k, 0.088 * k);
+    x.fillText(`Luftwiderstand: ${state.drag ? 'berücksichtigt' : 'nicht berücksichtigt'}`, 0.03 * k, 0.118 * k);
+    x.textAlign = 'right';
+    x.fillText('Name: ________________', W - 0.03 * k, 0.118 * k);
+
+    x.textAlign = 'left';
+    x.fillStyle = '#4b5361';
+    x.font = `400 ${22 * f / 2.86}px ${FONT}`;
+    const fy = H - footH;
+    x.fillText('Skala: Fallstrecke s in cm; Nullpunkt = Startposition des Kugelmittelpunkts.', 0.03 * k, fy + 0.03 * k);
+    x.fillText('Ablesen am Kugelmittelpunkt (roter Punkt). Bild n entsteht zum Zeitpunkt t = n · Δt.', 0.03 * k, fy + 0.058 * k);
+    return c;
+  }
+
+  function needsFall() {
+    if (state.time > 0) return false;
+    alert('Bitte lass die Kugeln zuerst fallen – dann entsteht das Stroboskopbild.');
+    return true;
+  }
+
+  $('btnPng').addEventListener('click', () => {
+    if (needsFall()) return;
+    const c = renderExport();
+    c.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `stroboskop_freier_fall_dt_${fmt(state.dt, 2)}s.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  });
+
+  $('btnPrint').addEventListener('click', () => {
+    if (needsFall()) return;
+    const img = $('printImg');
+    img.onload = () => { img.onload = null; window.print(); };
+    img.src = renderExport().toDataURL('image/png');
+  });
+
+  // ---------- Start ----------
+  resize();
+  updateUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
