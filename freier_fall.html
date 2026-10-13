@@ -20,6 +20,10 @@
     --accent-hover: #1753b8;
     --accent-text: #ffffff;
     --accent-soft: rgba(29, 99, 216, 0.10);
+    --steel: #2a78d6;
+    --wood: #eb6834;
+    --grid-minor: #eef1f5;
+    --grid-major: #d3d9e1;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -33,6 +37,10 @@
       --accent-hover: #6aa1f3;
       --accent-text: #0b1220;
       --accent-soft: rgba(75, 141, 240, 0.16);
+      --steel: #3987e5;
+      --wood: #d95926;
+      --grid-minor: #1d242e;
+      --grid-major: #313c4b;
       color-scheme: dark;
     }
   }
@@ -47,6 +55,10 @@
     --accent-hover: #6aa1f3;
     --accent-text: #0b1220;
     --accent-soft: rgba(75, 141, 240, 0.16);
+    --steel: #3987e5;
+    --wood: #d95926;
+    --grid-minor: #1d242e;
+    --grid-major: #313c4b;
     color-scheme: dark;
   }
 
@@ -237,6 +249,61 @@
   }
   .nojs b { display: block; font-size: 1.05rem; margin-bottom: 4px; }
 
+  /* Auswertung */
+  .analysis { padding: 0 12px 16px; }
+  .anaCard {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .anaHead { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: flex-end; justify-content: space-between; }
+  .anaHead h2 { margin: 0; font-size: 1.15rem; text-wrap: balance; }
+  .anaHead p { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; max-width: 70ch; }
+  .anaControls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tog[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  .tog[aria-pressed="true"]:hover { background: var(--accent-hover); }
+  .anaControls .check { margin-top: 0; }
+  .anaEmpty { color: var(--muted); margin: 0; padding: 18px; text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
+  .panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .pane.solo { grid-column: 1 / -1; }
+  .pane.solo .chartWrap { width: 100%; max-width: 760px; }
+  @media (max-width: 900px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+  .pane {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; min-width: 0;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .pane.wide { grid-column: 1 / -1; }
+  .paneHead { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; justify-content: space-between; }
+  .pane h3 { margin: 0; font-size: 1rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.88rem; color: var(--muted); }
+  .mk { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+  .mk.metal { background: var(--steel); border-radius: 50%; }
+  .mk.wood { width: 11px; height: 11px; border: 2px solid var(--wood); }
+  .chartWrap { position: relative; }
+  .chartWrap canvas { display: block; width: 100%; aspect-ratio: 4 / 3; max-height: 460px; touch-action: pan-y; }
+  .tip {
+    position: absolute; z-index: 2; pointer-events: none;
+    background: var(--text); color: var(--surface);
+    padding: 6px 9px; border-radius: 6px;
+    font-size: 0.82rem; line-height: 1.35; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .note { margin: 0; color: var(--muted); font-size: 0.86rem; }
+  .tableWrap { overflow: auto; max-height: 520px; border: 1px solid var(--border); border-radius: 6px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 5px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.data thead th { position: sticky; background: var(--surface-2); color: var(--muted); font-weight: 600; }
+  table.data thead tr:first-child th { top: 0; }
+  table.data thead tr:nth-child(2) th { top: 31px; }
+  table.data th.grp { text-align: center; color: var(--text); }
+  table.data th.sep, table.data td.sep { border-left: 1px solid var(--border); }
+  table.data tbody tr:hover td { background: var(--accent-soft); }
+  table.data td.empty { text-align: center; color: var(--muted); padding: 18px; }
+
   #printArea { display: none; }
   [hidden] { display: none !important; }
 
@@ -278,7 +345,7 @@
   @media print {
     @page { size: A4 portrait; margin: 10mm; }
     body { background: #fff; }
-    header, .layout, .sheet, .nojs { display: none !important; }
+    header, .layout, .sheet, .nojs, .analysis { display: none !important; }
     #printArea { display: block; }
     #printArea img { display: block; margin: 0 auto; max-width: 100%; max-height: 275mm; }
   }
@@ -410,9 +477,10 @@
     </div>
 
     <div class="group">
-      <h2>Stroboskopbild ausgeben</h2>
+      <h2>Auswertung</h2>
       <div class="btns" style="margin-top:0">
         <button id="btnPng" style="grid-column: 1 / -1">Stroboskopbild anzeigen und speichern</button>
+        <button id="btnAna" style="grid-column: 1 / -1">Diagramme und Messwerte ↓</button>
       </div>
       <p class="hint">Zeigt das aktuelle Stroboskopbild mit Skala als Bild – zum Speichern in Fotos/Dateien oder zum Ausdrucken für die Auswertung auf Papier.</p>
     </div>
@@ -435,6 +503,56 @@
     </div>
   </aside>
 </main>
+
+<section class="analysis" id="analysis" aria-labelledby="anaTitle">
+  <div class="anaCard">
+    <div class="anaHead">
+      <div>
+        <h2 id="anaTitle">Auswertung: Diagramme und Messwerte</h2>
+        <p>Die Werte stammen aus den Stroboskopbildern im Zeitabstand Δt und wachsen während des Falls mit.
+          Zum Vergleich mit der eigenen Auswertung auf Papier einblenden.</p>
+      </div>
+      <div class="anaControls">
+        <div class="toggles" role="group" aria-label="Anzeige wählen">
+          <button class="tog" data-pane="st" aria-pressed="false">s-t-Diagramm</button>
+          <button class="tog" data-pane="table" aria-pressed="false">Messwerttabelle</button>
+          <button class="tog" data-pane="vt" aria-pressed="false">v-t-Diagramm</button>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="chkFit">
+          <span>Ausgleichskurven einzeichnen</span>
+        </label>
+      </div>
+    </div>
+
+    <p class="anaEmpty" id="anaEmpty">Wähle oben aus, was angezeigt werden soll: s-t-Diagramm, Messwerttabelle oder v-t-Diagramm.</p>
+
+    <div class="panes">
+      <div class="pane" id="pane-st" hidden>
+        <div class="paneHead"><h3 id="ttlST">s-t-Diagramm</h3><div class="legend" id="legST"></div></div>
+        <div class="chartWrap">
+          <canvas id="cvST" role="img" aria-label="s-t-Diagramm der Messwerte"></canvas>
+          <div class="tip" hidden></div>
+        </div>
+        <p class="note" id="noteST"></p>
+      </div>
+      <div class="pane" id="pane-vt" hidden>
+        <div class="paneHead"><h3 id="ttlVT">v-t-Diagramm</h3><div class="legend" id="legVT"></div></div>
+        <div class="chartWrap">
+          <canvas id="cvVT" role="img" aria-label="v-t-Diagramm der Messwerte"></canvas>
+          <div class="tip" hidden></div>
+        </div>
+        <p class="note" id="noteVT"></p>
+      </div>
+      <div class="pane wide" id="pane-table" hidden>
+        <div class="paneHead"><h3>Messwerttabelle</h3></div>
+        <p class="note">Δs ist die Strecke zwischen Bild n−1 und Bild n. v̄ = Δs / Δt ist die Durchschnittsgeschwindigkeit
+          in diesem Zeitabschnitt; sie gehört zur Zeitmitte t<sub>m</sub> = t − Δt/2. Diese Werte bilden das v-t-Diagramm.</p>
+        <div class="tableWrap"><table class="data" id="tblData"></table></div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="sheetInner">
@@ -478,13 +596,13 @@
   function simulate(ball, drag) {
     if (!drag) {
       const tLand = Math.sqrt(2 * DROP / G);
-      return { tLand, pos: t => t <= 0 ? 0 : t >= tLand ? DROP : 0.5 * G * t * t };
+      return { tLand, pos: t => t <= 0 ? 0 : t >= tLand ? DROP : 0.5 * G * t * t, vel: t => t <= 0 ? 0 : G * Math.min(t, tLand) };
     }
     // Newton-Reibung, RK4
     const h = 1e-4;
     const c = 0.5 * RHO_AIR * CW * AREA / ball.m;
     const acc = v => G - c * v * Math.abs(v);
-    const arr = [0];
+    const arr = [0], varr = [0];
     let s = 0, v = 0, tLand = 0;
     for (let i = 1; i < 200000; i++) {
       const k1s = v,                k1v = acc(v);
@@ -494,6 +612,7 @@
       const sNew = s + h / 6 * (k1s + 2 * k2s + 2 * k3s + k4s);
       v += h / 6 * (k1v + 2 * k2v + 2 * k3v + k4v);
       arr.push(sNew);
+      varr.push(v);
       if (sNew >= DROP) {
         tLand = (i - 1 + (DROP - s) / (sNew - s)) * h;
         break;
@@ -507,6 +626,11 @@
         if (t >= tLand) return DROP;
         const f = t / h, i = Math.floor(f);
         return Math.min(DROP, arr[i] + (arr[i + 1] - arr[i]) * (f - i));
+      },
+      vel(t) {
+        if (t <= 0) return 0;
+        const f = Math.min(t, tLand) / h, i = Math.min(Math.floor(f), varr.length - 2);
+        return varr[i] + (varr[i + 1] - varr[i]) * (f - i);
       }
     };
   }
@@ -1015,7 +1139,7 @@
       updateUI();
     }
     lampEl.classList.toggle('on', ts < lampUntil);
-    if (dirty) { draw(); dirty = false; }
+    if (dirty) { draw(); drawAnalysis(); dirty = false; }
     requestAnimationFrame(frame);
   }
 
@@ -1237,6 +1361,313 @@
     if (img.complete) window.print();
     else img.onload = () => { img.onload = null; window.print(); };
   });
+
+  // ---------- Auswertung: Diagramme und Messwerte ----------
+  const ana = { show: { st: false, table: false, vt: false }, fit: false, tableKey: '', legKey: '' };
+  const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  function measurements() {
+    const out = {};
+    for (const key of activeKeys()) {
+      const tr = traj[key];
+      const rows = [];
+      if (released()) {
+        const N = Math.floor(Math.min(state.time, tr.tLand) / state.dt + 1e-7);
+        for (let n = 0; n <= N; n++) rows.push({ n, t: n * state.dt, s: tr.pos(n * state.dt) });
+      }
+      const vel = [];
+      for (let i = 1; i < rows.length; i++) {
+        const ds = rows[i].s - rows[i - 1].s;
+        vel.push({ n: rows[i].n, tm: (rows[i].n - 0.5) * state.dt, ds, v: ds / state.dt });
+      }
+      out[key] = { rows, vel };
+    }
+    return out;
+  }
+
+  function linFit(pts) {
+    const n = pts.length;
+    if (n < 2) return null;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const p of pts) { sx += p.x; sy += p.y; sxx += p.x * p.x; sxy += p.x * p.y; }
+    const d = n * sxx - sx * sx;
+    if (!d) return null;
+    const a = (n * sxy - sx * sy) / d;
+    return { a, b: (sy - a * sx) / n };
+  }
+
+  function drawChart(cv, cfg) {
+    const ratio = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    if (cv.width !== Math.round(w * ratio) || cv.height !== Math.round(h * ratio)) {
+      cv.width = Math.round(w * ratio);
+      cv.height = Math.round(h * ratio);
+    }
+    const c = cv.getContext('2d');
+    c.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const col = {
+      text: cssVar('--text'), muted: cssVar('--muted'), surface: cssVar('--surface'),
+      minor: cssVar('--grid-minor'), major: cssVar('--grid-major')
+    };
+    c.fillStyle = col.surface;
+    c.fillRect(0, 0, w, h);
+
+    const m = { l: 50, r: 22, t: 30, b: 44 };
+    const pw = w - m.l - m.r, ph = h - m.t - m.b;
+    const X = x => m.l + x / cfg.xMax * pw;
+    const Y = y => m.t + ph - y / cfg.yMax * ph;
+
+    // Raster (wie Millimeterpapier: fein und grob)
+    const grid = (xs, ys, color) => {
+      c.strokeStyle = color;
+      c.lineWidth = 1;
+      c.beginPath();
+      for (let i = 1; i * xs <= cfg.xMax + 1e-9; i++) { const x = Math.round(X(i * xs)) + 0.5; c.moveTo(x, m.t); c.lineTo(x, m.t + ph); }
+      for (let i = 1; i * ys <= cfg.yMax + 1e-9; i++) { const y = Math.round(Y(i * ys)) + 0.5; c.moveTo(m.l, y); c.lineTo(m.l + pw, y); }
+      c.stroke();
+    };
+    grid(cfg.xMinor, cfg.yMinor, col.minor);
+    grid(cfg.xMajor, cfg.yMajor, col.major);
+
+    // Achsen mit Pfeilspitzen
+    c.strokeStyle = col.muted;
+    c.fillStyle = col.muted;
+    c.lineWidth = 1.5;
+    const x0 = Math.round(X(0)) + 0.5, y0 = Math.round(Y(0)) + 0.5;
+    const xEnd = m.l + pw + 14, yEnd = m.t - 16;
+    c.beginPath();
+    c.moveTo(x0, y0); c.lineTo(xEnd, y0);
+    c.moveTo(x0, y0); c.lineTo(x0, yEnd);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(xEnd + 2, y0); c.lineTo(xEnd - 7, y0 - 4); c.lineTo(xEnd - 7, y0 + 4); c.closePath();
+    c.moveTo(x0, yEnd - 2); c.lineTo(x0 - 4, yEnd + 7); c.lineTo(x0 + 4, yEnd + 7); c.closePath();
+    c.fill();
+
+    // Beschriftung
+    c.font = `12px ${FONT}`;
+    c.fillStyle = col.muted;
+    c.textAlign = 'center';
+    c.textBaseline = 'top';
+    for (let i = 0; i * cfg.xMajor <= cfg.xMax + 1e-9; i++) {
+      const v = i * cfg.xMajor;
+      c.fillText(fmt(v, cfg.xDec), X(v), y0 + 6);
+    }
+    c.textAlign = 'right';
+    c.textBaseline = 'middle';
+    for (let i = 1; i * cfg.yMajor <= cfg.yMax + 1e-9; i++) {
+      const v = i * cfg.yMajor;
+      c.fillText(fmt(v, cfg.yDec), x0 - 6, Y(v));
+    }
+    c.font = `600 13px ${FONT}`;
+    c.fillStyle = col.text;
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillText(cfg.yLabel, x0 + 10, yEnd + 2);
+    c.textAlign = 'right';
+    c.textBaseline = 'top';
+    c.fillText(cfg.xLabel, xEnd + 2, y0 + 24);
+
+    // Ausgleichskurven
+    c.save();
+    c.beginPath();
+    c.rect(m.l, m.t - 2, pw + 2, ph + 2);
+    c.clip();
+    c.lineWidth = 2;
+    for (const cu of cfg.curves) {
+      c.strokeStyle = cu.color;
+      c.globalAlpha = 0.85;
+      c.setLineDash(cu.dash || []);
+      c.beginPath();
+      const steps = 160;
+      for (let i = 0; i <= steps; i++) {
+        const x = cu.x0 + (cu.x1 - cu.x0) * i / steps;
+        const px = X(x), py = Y(cu.fn(x));
+        i ? c.lineTo(px, py) : c.moveTo(px, py);
+      }
+      c.stroke();
+    }
+    c.restore();
+
+    // Messpunkte (Stahl: gefüllter Kreis, Holz: offenes Quadrat – deckungsgleiche Punkte bleiben beide sichtbar)
+    const hits = [];
+    for (const se of cfg.series) {
+      for (const p of se.pts) {
+        const px = X(p.x), py = Y(p.y);
+        c.lineWidth = 2;
+        if (se.marker === 'circle') {
+          c.beginPath();
+          c.arc(px, py, 4.5, 0, Math.PI * 2);
+          c.fillStyle = se.color;
+          c.strokeStyle = col.surface;
+          c.fill();
+          c.stroke();
+        } else {
+          c.strokeStyle = col.surface;
+          c.lineWidth = 4;
+          c.strokeRect(px - 5.5, py - 5.5, 11, 11);
+          c.strokeStyle = se.color;
+          c.lineWidth = 2;
+          c.strokeRect(px - 5.5, py - 5.5, 11, 11);
+        }
+        hits.push({ px, py, tip: p.tip });
+      }
+    }
+    cv._hits = hits;
+
+    if (cfg.empty) {
+      c.font = `14px ${FONT}`;
+      c.fillStyle = col.muted;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('Noch keine Messwerte – lass die Kugeln fallen.', m.l + pw / 2, m.t + ph / 2);
+    }
+  }
+
+  function legendHtml(keys) {
+    if (keys.length < 2) return '';
+    return keys.map(k => `<span><span class="mk ${k}"></span>${BALLS[k].name}</span>`).join('');
+  }
+
+  function buildTable(data, keys) {
+    const maxN = Math.max(-1, ...keys.map(k => data[k].rows.length - 1));
+    const key = `${keys.join()}|${state.dt}|${state.drag}|${maxN}`;
+    if (key === ana.tableKey) return;
+    ana.tableKey = key;
+    let h = '<thead><tr><th rowspan="2">Bild n</th><th rowspan="2">t in s</th><th rowspan="2">t<sub>m</sub> in s</th>';
+    for (const k of keys) h += `<th colspan="3" class="grp sep"><span class="mk ${k}"></span>${BALLS[k].name}</th>`;
+    h += '</tr><tr>';
+    for (let i = 0; i < keys.length; i++) h += '<th class="sep">s in cm</th><th>Δs in cm</th><th>v̄ in m/s</th>';
+    h += '</tr></thead><tbody>';
+    if (maxN < 0) {
+      h += `<tr><td colspan="${3 + 3 * keys.length}" class="empty">Noch keine Messwerte – lass die Kugeln fallen.</td></tr>`;
+    }
+    for (let n = 0; n <= maxN; n++) {
+      h += `<tr><td>${n}</td><td>${fmt(n * state.dt, 2)}</td><td>${n ? fmt((n - 0.5) * state.dt, 3) : '–'}</td>`;
+      for (const k of keys) {
+        const r = data[k].rows[n], v = n ? data[k].vel[n - 1] : null;
+        h += `<td class="sep">${r ? fmt(r.s * 100, 1) : '–'}</td>`;
+        h += `<td>${v ? fmt(v.ds * 100, 1) : '–'}</td><td>${v ? fmt(v.v, 2) : '–'}</td>`;
+      }
+      h += '</tr>';
+    }
+    $('tblData').innerHTML = h + '</tbody>';
+  }
+
+  function drawAnalysis() {
+    if (!ana.show.st && !ana.show.table && !ana.show.vt) return;
+    const keys = activeKeys();
+    const data = measurements();
+    const color = k => cssVar(k === 'metal' ? '--steel' : '--wood');
+    const marker = k => k === 'metal' ? 'circle' : 'square';
+    const empty = !released();
+
+    const legKey = keys.join();
+    if (legKey !== ana.legKey) {
+      ana.legKey = legKey;
+      $('legST').innerHTML = $('legVT').innerHTML = legendHtml(keys);
+      const suffix = keys.length === 1 ? ` (${BALLS[keys[0]].name})` : '';
+      $('ttlST').textContent = 's-t-Diagramm' + suffix;
+      $('ttlVT').textContent = 'v-t-Diagramm' + suffix;
+    }
+
+    if (ana.show.st) {
+      drawChart($('cvST'), {
+        xMax: 0.7, xMajor: 0.1, xMinor: 0.02, xDec: 1, xLabel: 't in s',
+        yMax: 200, yMajor: 20, yMinor: 5, yDec: 0, yLabel: 's in cm',
+        empty,
+        series: keys.map(k => ({
+          color: color(k), marker: marker(k),
+          pts: data[k].rows.map(r => ({
+            x: r.t, y: r.s * 100,
+            tip: `<b>${BALLS[k].name}</b> · Bild ${r.n}<br>t = ${fmt(r.t, 2)} s<br>s = ${fmt(r.s * 100, 1)} cm`
+          }))
+        })),
+        curves: ana.fit && !empty ? keys.map(k => ({
+          color: color(k), x0: 0, x1: traj[k].tLand, fn: t => traj[k].pos(t) * 100
+        })) : []
+      });
+      $('noteST').textContent = ana.fit && !empty
+        ? (state.drag
+          ? 'Kurven: Verlauf aus der Simulation mit Luftwiderstand.'
+          : 'Kurve: Parabel s = ½ · g · t² mit g = 9,81 m/s².')
+        : '';
+    }
+
+    if (ana.show.vt) {
+      const fits = {};
+      for (const k of keys) fits[k] = linFit(data[k].vel.map(p => ({ x: p.tm, y: p.v })));
+      drawChart($('cvVT'), {
+        xMax: 0.7, xMajor: 0.1, xMinor: 0.02, xDec: 1, xLabel: 't in s',
+        yMax: 7, yMajor: 1, yMinor: 0.2, yDec: 0, yLabel: 'v in m/s',
+        empty,
+        series: keys.map(k => ({
+          color: color(k), marker: marker(k),
+          pts: data[k].vel.map(p => ({
+            x: p.tm, y: p.v,
+            tip: `<b>${BALLS[k].name}</b> · Bild ${p.n - 1} → ${p.n}<br>t<sub>m</sub> = ${fmt(p.tm, 3)} s<br>v̄ = ${fmt(p.v, 2)} m/s`
+          }))
+        })),
+        curves: ana.fit ? keys.filter(k => fits[k]).map(k => ({
+          color: color(k), x0: 0, x1: traj[k].tLand, fn: t => fits[k].a * t + fits[k].b
+        })) : []
+      });
+      const parts = keys.filter(k => fits[k]).map(k =>
+        `${keys.length > 1 ? BALLS[k].name + ': ' : ''}a ≈ ${fmt(fits[k].a, 2)} m/s²`);
+      $('noteVT').textContent = ana.fit && parts.length
+        ? `Steigung der Ausgleichsgeraden – ${parts.join(' · ')}`
+        : '';
+    }
+
+    if (ana.show.table) buildTable(data, keys);
+  }
+
+  document.querySelectorAll('.tog').forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.dataset.pane;
+    ana.show[k] = !ana.show[k];
+    btn.setAttribute('aria-pressed', String(ana.show[k]));
+    $('pane-' + k).hidden = !ana.show[k];
+    $('anaEmpty').hidden = Object.values(ana.show).some(Boolean);
+    $('pane-st').classList.toggle('solo', ana.show.st && !ana.show.vt);
+    $('pane-vt').classList.toggle('solo', ana.show.vt && !ana.show.st);
+    ana.tableKey = '';
+    ana.legKey = '';
+    dirty = true;
+  }));
+  $('chkFit').addEventListener('change', e => { ana.fit = e.target.checked; dirty = true; });
+  $('btnAna').addEventListener('click', () => $('analysis').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+
+  // Tooltip beim Zeigen oder Antippen eines Messpunkts
+  for (const id of ['cvST', 'cvVT']) {
+    const cvs = $(id), tip = cvs.nextElementSibling;
+    const show = e => {
+      const r = cvs.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      let best = null, bd = 22 * 22;
+      for (const hp of cvs._hits || []) {
+        const d = (hp.px - x) ** 2 + (hp.py - y) ** 2;
+        if (d < bd) { bd = d; best = hp; }
+      }
+      if (!best) { tip.hidden = true; return; }
+      tip.innerHTML = best.tip;
+      tip.hidden = false;
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      // links oberhalb des Punkts: dort liegen bei steigenden Kurven keine weiteren Messpunkte
+      let lx = best.px - tw - 12, ly = best.py - th - 10;
+      if (lx < 4) lx = best.px + 12;
+      if (ly < 4) ly = best.py + 12;
+      tip.style.left = `${lx}px`;
+      tip.style.top = `${ly}px`;
+    };
+    cvs.addEventListener('pointermove', show);
+    cvs.addEventListener('pointerdown', show);
+    cvs.addEventListener('pointerleave', () => { tip.hidden = true; });
+    new ResizeObserver(() => { dirty = true; }).observe(cvs);
+  }
+  const markDirty = () => { dirty = true; };
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', markDirty); } catch (e) { /* ältere Browser */ }
+  new MutationObserver(markDirty).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   // ---------- Start ----------
   resize();
