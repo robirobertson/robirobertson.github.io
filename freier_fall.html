@@ -88,8 +88,10 @@
     grid-template-columns: minmax(0, 1fr) 340px;
     gap: 12px;
     padding: 0 12px 12px;
-    height: calc(100vh - 52px);
-    height: calc(100dvh - 52px);
+    /* feste Ober- und Untergrenze: in eingebetteten Ansichten, die ihre Höhe an den Inhalt
+       anpassen, würde eine reine Viewport-Höhe sonst immer weiter wachsen */
+    height: clamp(560px, calc(100vh - 52px), 1100px);
+    height: clamp(560px, calc(100dvh - 52px), 1100px);
   }
 
   .stage {
@@ -338,7 +340,7 @@
   @media (max-width: 700px) {
     header { height: auto; }
     .layout { grid-template-columns: 1fr; height: auto; }
-    .stage { height: 82vh; min-height: 480px; }
+    .stage { height: clamp(480px, 82vh, 900px); }
     .panel { overflow: visible; }
   }
 
@@ -942,6 +944,9 @@
     dpr = window.devicePixelRatio || 1;
     cssW = wrap.clientWidth;
     cssH = wrap.clientHeight;
+    // Safari zeigt sehr große Zeichenflächen nicht an – Pixeldichte notfalls senken
+    const maxPx = 16e6;
+    if (cssW * cssH * dpr * dpr > maxPx) dpr = Math.max(1, Math.sqrt(maxPx / Math.max(1, cssW * cssH)));
     cv.width = Math.round(cssW * dpr);
     cv.height = Math.round(cssH * dpr);
     dirty = true;
@@ -1132,6 +1137,7 @@
 
   let last = 0;
   function frame(ts) {
+    requestAnimationFrame(frame);
     const realDt = last ? Math.min((ts - last) / 1000, 0.05) : 0;
     last = ts;
     if (state.running) {
@@ -1145,8 +1151,11 @@
       updateUI();
     }
     lampEl.classList.toggle('on', ts < lampUntil);
-    if (dirty) { draw(); drawAnalysis(); dirty = false; }
-    requestAnimationFrame(frame);
+    if (dirty) {
+      dirty = false;
+      draw();
+      try { drawAnalysis(); } catch (e) { console.error(e); }
+    }
   }
 
   // ---------- Bedienoberfläche ----------
