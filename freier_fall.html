@@ -273,6 +273,7 @@
   .pane.solo { grid-column: 1 / -1; }
   .pane.solo .chartWrap, .pane.solo .tableWrap { width: 100%; max-width: 760px; }
   @media (max-width: 900px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 1300px) { #pane-table, #pane-vtab { grid-column: 1 / -1; } }
   .pane {
     border: 1px solid var(--border); border-radius: 8px;
     padding: 12px; min-width: 0;
@@ -297,7 +298,8 @@
   .note { margin: 0; color: var(--muted); font-size: 0.86rem; }
   .tableWrap { overflow: auto; max-height: 520px; border: 1px solid var(--border); border-radius: 6px; }
   table.data { border-collapse: collapse; width: 100%; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
-  table.data th, table.data td { padding: 5px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.data th, table.data td { padding: 5px 7px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  #tblV { font-size: 0.86rem; }
   table.data thead th { position: sticky; background: var(--surface-2); color: var(--muted); font-weight: 600; }
   table.data thead tr:first-child th { top: 0; }
   table.data thead tr:nth-child(2) th { top: 31px; }
@@ -554,8 +556,9 @@
       </div>
       <div class="pane" id="pane-vtab" hidden>
         <div class="paneHead"><h3>v-t-Tabelle</h3></div>
-        <p class="note">Für jedes Bild n: Weg Δs = s(Bild n) − s(Bild n−1) und Zeit Δt zwischen den beiden Bildern.
-          Die mittlere Geschwindigkeit v = Δs / Δt wird beim Zeitpunkt t von Bild n eingetragen. Diese Werte bilden das v-t-Diagramm.</p>
+        <p class="note">Für zwei aufeinanderfolgende Bilder: Weg Δs = s₂ − s₁ und Zeit Δt = t₂ − t₁.
+          v = Δs / Δt ist die Durchschnittsgeschwindigkeit in diesem Zeitintervall. Sie wird deshalb in der Mitte
+          des Intervalls eingetragen: t<sub>mitte</sub> = (t₁ + t₂) / 2. Diese Werte bilden das v-t-Diagramm.</p>
         <div class="tableWrap"><table class="data" id="tblV"></table></div>
       </div>
     </div>
@@ -1393,7 +1396,7 @@
       const vel = [];
       for (let i = 1; i < rows.length; i++) {
         const ds = rows[i].s - rows[i - 1].s;
-        vel.push({ n: rows[i].n, t: rows[i].t, ds, v: ds / state.dt });
+        vel.push({ n: rows[i].n, t1: rows[i - 1].t, t2: rows[i].t, tm: (rows[i - 1].t + rows[i].t) / 2, ds, v: ds / state.dt });
       }
       out[key] = { rows, vel };
     }
@@ -1571,20 +1574,23 @@
     $('tblData').innerHTML = h + '</tbody>';
   }
 
-  // v-t-Tabelle: v = Δs / Δt aus zwei aufeinanderfolgenden Bildern, eingetragen bei der Zeit des späteren Bildes
+  // v-t-Tabelle: v = Δs / Δt zwischen zwei aufeinanderfolgenden Bildern, eingetragen in der Mitte des Zeitintervalls
   function buildVTable(data, keys) {
     const maxN = Math.max(-1, ...keys.map(k => data[k].rows.length - 1));
     const key = `${keys.join()}|${state.dt}|${state.drag}|${maxN}`;
     if (key === ana.vtabKey) return;
     ana.vtabKey = key;
-    let h = '<thead><tr><th rowspan="2">Bild n</th><th rowspan="2">t in s</th><th rowspan="2">Δt in s</th>';
+    let h = '<thead><tr><th rowspan="2">Bilder</th><th rowspan="2">t₁ in s</th><th rowspan="2">t₂ in s</th>' +
+      '<th rowspan="2">Δt in s</th><th rowspan="2">t<sub>mitte</sub> in s</th>';
     for (const k of keys) h += `<th colspan="2" class="grp sep">${ballHead(k)}</th>`;
     h += '</tr><tr>';
     for (let i = 0; i < keys.length; i++) h += '<th class="sep">Δs in cm</th><th>v in m/s</th>';
     h += '</tr></thead><tbody>';
-    if (maxN < 1) h += emptyRow(3 + 2 * keys.length);
+    if (maxN < 1) h += emptyRow(5 + 2 * keys.length);
     for (let n = 1; n <= maxN; n++) {
-      h += `<tr><td>${n}</td><td>${fmt(n * state.dt, 2)}</td><td>${fmt(state.dt, 2)}</td>`;
+      const t1 = (n - 1) * state.dt, t2 = n * state.dt;
+      h += `<tr><td>${n - 1} → ${n}</td><td>${fmt(t1, 2)}</td><td>${fmt(t2, 2)}</td>` +
+        `<td>${fmt(state.dt, 2)}</td><td>${fmt((t1 + t2) / 2, 3)}</td>`;
       for (const k of keys) {
         const v = data[k].vel[n - 1];
         h += `<td class="sep">${v ? fmt(v.ds * 100, 1) : '–'}</td><td>${v ? fmt(v.v, 2) : '–'}</td>`;
@@ -1636,7 +1642,7 @@
 
     if (ana.show.vt) {
       const fits = {};
-      for (const k of keys) fits[k] = linFit(data[k].vel.map(p => ({ x: p.t, y: p.v })));
+      for (const k of keys) fits[k] = linFit(data[k].vel.map(p => ({ x: p.tm, y: p.v })));
       drawChart($('cvVT'), {
         xMax: 0.7, xMajor: 0.1, xMinor: 0.02, xDec: 1, xLabel: 't in s',
         yMax: 7, yMajor: 1, yMinor: 0.2, yDec: 0, yLabel: 'v in m/s',
@@ -1644,8 +1650,8 @@
         series: keys.map(k => ({
           color: color(k), marker: marker(k),
           pts: data[k].vel.map(p => ({
-            x: p.t, y: p.v,
-            tip: `<b>${BALLS[k].name}</b> · Bild ${p.n - 1} → ${p.n}<br>t = ${fmt(p.t, 2)} s<br>v = ${fmt(p.v, 2)} m/s`
+            x: p.tm, y: p.v,
+            tip: `<b>${BALLS[k].name}</b> · Bild ${p.n - 1} → ${p.n}<br>t<sub>mitte</sub> = ${fmt(p.tm, 3)} s<br>v = ${fmt(p.v, 2)} m/s`
           }))
         })),
         curves: ana.fit ? keys.filter(k => fits[k]).map(k => ({
@@ -1655,11 +1661,8 @@
       const fitted = keys.filter(k => fits[k]);
       const parts = fitted.map(k =>
         `${keys.length > 1 ? BALLS[k].name + ': ' : ''}a ≈ ${fmt(fits[k].a, 2)} m/s²`);
-      const t0 = fitted.length ? -fits[fitted[0]].b / fits[fitted[0]].a : 0;
       $('noteVT').textContent = ana.fit && parts.length
-        ? `Steigung der Ausgleichsgeraden: ${parts.join(' · ')}. ` +
-          `Weil v bei der Zeit des späteren Bildes eingetragen wird, schneidet die Gerade die t-Achse ` +
-          `erst bei t ≈ ${fmt(t0, 3)} s (= Δt/2); die Steigung ändert das nicht.`
+        ? `Steigung der Ausgleichsgeraden: ${parts.join(' · ')}.`
         : '';
     }
 
