@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flüssigkeiten">
+<meta name="format-detection" content="telephone=no">
+<title>Volumenänderung von Flüssigkeiten</title>
+<style>
+  :root {
+    --bg: #eef1f5;
+    --surface: #ffffff;
+    --surface-2: #f5f7fa;
+    --text: #1b2230;
+    --muted: #5b6576;
+    --border: #d6dbe2;
+    --accent: #1d63d8;
+    --accent-hover: #1753b8;
+    --accent-text: #ffffff;
+    --accent-soft: rgba(29, 99, 216, 0.10);
+    --glass: rgba(55, 75, 98, 0.80);
+    --glass-soft: rgba(55, 75, 98, 0.10);
+    --grid: #e3e7ec;
+    --good: #15803d;
+    --good-soft: rgba(21, 128, 61, 0.10);
+    --bad: #b45309;
+    --bad-soft: rgba(180, 83, 9, 0.10);
+    /* Kolben A, B, C – Kategorienfarben (validiert, alle Paare) */
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141b;
+      --surface: #171d26;
+      --surface-2: #1f2733;
+      --text: #e7ebf1;
+      --muted: #9aa5b5;
+      --border: #2d3746;
+      --accent: #4b8df0;
+      --accent-hover: #6aa1f3;
+      --accent-text: #0b1220;
+      --accent-soft: rgba(75, 141, 240, 0.16);
+      --glass: rgba(200, 214, 230, 0.75);
+      --glass-soft: rgba(200, 214, 230, 0.08);
+      --grid: #263040;
+      --good: #4ade80;
+      --good-soft: rgba(74, 222, 128, 0.12);
+      --bad: #fbbf24;
+      --bad-soft: rgba(251, 191, 36, 0.12);
+      --s1: #3987e5;
+      --s2: #d95926;
+      --s3: #199e70;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141b;
+    --surface: #171d26;
+    --surface-2: #1f2733;
+    --text: #e7ebf1;
+    --muted: #9aa5b5;
+    --border: #2d3746;
+    --accent: #4b8df0;
+    --accent-hover: #6aa1f3;
+    --accent-text: #0b1220;
+    --accent-soft: rgba(75, 141, 240, 0.16);
+    --glass: rgba(200, 214, 230, 0.75);
+    --glass-soft: rgba(200, 214, 230, 0.08);
+    --grid: #263040;
+    --good: #4ade80;
+    --good-soft: rgba(74, 222, 128, 0.12);
+    --bad: #fbbf24;
+    --bad-soft: rgba(251, 191, 36, 0.12);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    min-height: 52px;
+  }
+  header h1 { font-size: 1.2rem; margin: 0; }
+  header .sub { color: var(--muted); font-size: 0.9rem; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 12px;
+    padding: 0 12px 12px;
+    height: calc(100vh - 52px);
+    height: calc(100dvh - 52px);
+  }
+
+  .stage {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .statusbar {
+    display: flex;
+    align-items: center;
+    gap: 8px 18px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .reading { display: flex; flex-direction: column; line-height: 1.15; }
+  .reading small { color: var(--muted); font-size: 0.75rem; }
+  .reading b {
+    font-family: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    font-size: 1.35rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .status { color: var(--muted); flex: 1; min-width: 180px; }
+
+  .tempbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .tempbar label { font-weight: 600; }
+  .tempbar input[type="range"] { flex: 1; min-width: 160px; }
+  .tempbar output {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700; min-width: 5.5ch; text-align: right;
+  }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .presets button { padding: 6px 10px; font-size: 0.9rem; }
+
+  .canvasWrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .panel {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+  .group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .group h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+
+  .flaskRow { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .flaskRow:first-of-type { margin-top: 0; }
+  .flaskRow select { flex: 1; max-width: none; }
+  .tag {
+    flex: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: inline-grid; place-items: center;
+    color: #fff; font-weight: 700; font-size: 0.9rem;
+  }
+  .tag.s1 { background: var(--s1); }
+  .tag.s2 { background: var(--s2); border-radius: 5px; }
+  .tag.s3 { background: var(--s3); clip-path: polygon(50% 4%, 100% 96%, 0 96%); padding-top: 7px; font-size: 0.8rem; }
+  .swatch { width: 14px; height: 22px; border-radius: 3px; border: 1px solid var(--glass); flex: none; }
+
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .btns .wide { grid-column: 1 / -1; }
+  button {
+    font: inherit;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  button.primary {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: transparent;
+    font-weight: 650;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+
+  .field { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; }
+  .field > span { flex: none; }
+  select {
+    font: inherit;
+    padding: 6px 8px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    min-width: 0;
+    max-width: 200px;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; cursor: pointer; }
+  .check input { accent-color: var(--accent); }
+  .check small { display: block; color: var(--muted); font-size: 0.8rem; }
+  .hint { color: var(--muted); font-size: 0.82rem; margin: 8px 0 0; }
+
+  /* Vermutung */
+  .guess { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .guess button { display: flex; align-items: center; gap: 6px; padding: 7px 8px; text-align: left; font-size: 0.92rem; }
+  .guess button .tag { width: 22px; height: 22px; font-size: 0.75rem; }
+  .guess button .tag.s3 { padding-top: 5px; font-size: 0.68rem; }
+  .verdict { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 0.92rem; }
+  .verdict.wait { background: var(--accent-soft); }
+  .verdict.ok { background: var(--good-soft); border-left: 4px solid var(--good); }
+  .verdict.no { background: var(--bad-soft); border-left: 4px solid var(--bad); }
+
+  /* Diagramm */
+  .legend { display: flex; gap: 6px 12px; flex-wrap: wrap; font-size: 0.85rem; margin-bottom: 6px; color: var(--text); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .chartWrap { position: relative; height: 240px; }
+  #chart { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 2;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 7px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    padding: 6px 8px; font-size: 0.8rem; white-space: nowrap;
+  }
+  .tip div { display: flex; align-items: center; gap: 6px; }
+  .tip i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+
+  /* Messtabelle */
+  .tableWrap { max-height: 240px; overflow: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--border); }
+  table.data thead { position: sticky; top: 0; z-index: 1; }
+  table.data th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+  table.data thead tr:nth-child(2) th { font-weight: 500; color: var(--muted); font-size: 0.78rem; }
+  table.data td:first-child, table.data th:first-child { text-align: center; color: var(--muted); }
+  table.data .empty td { text-align: center; color: var(--muted); padding: 12px; }
+  .mk { display: inline-block; width: 9px; height: 9px; margin-right: 3px; vertical-align: 0; }
+  .mk.s1 { background: var(--s1); border-radius: 50%; }
+  .mk.s2 { background: var(--s2); }
+  .mk.s3 { background: var(--s3); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+
+  details { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+  details:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  details summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+  details p, details ul, details ol { font-size: 0.9rem; margin: 8px 0 0; }
+  details ul, details ol { padding-left: 20px; }
+  details li { margin-bottom: 4px; }
+  details table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 0.88rem; }
+  details table td, details table th { padding: 3px 4px; border-bottom: 1px solid var(--border); text-align: left; }
+  details table td:last-child, details table th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .merke {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 8px 10px; border-radius: 6px; margin-top: 8px; font-size: 0.92rem;
+  }
+
+  button, select, label, summary, input { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  select { font-size: 16px; }
+  input[type="checkbox"] { width: 20px; height: 20px; flex: none; margin: 0; }
+  input[type="range"] { height: 28px; }
+
+  .nojs {
+    margin: 12px; padding: 14px 16px;
+    border: 2px solid #d0312d; border-radius: 10px;
+    background: #fff4f3; color: #5a1512;
+  }
+  .nojs b { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 1100px) and (min-width: 761px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 320px; }
+  }
+  @media (max-width: 760px) {
+    header { padding: 10px 16px; }
+    .layout { grid-template-columns: 1fr; height: auto; padding: 0 16px 16px; }
+    .stage { height: auto; }
+    .canvasWrap { flex: none; aspect-ratio: 900 / 730; }
+    .panel { overflow: visible; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nojs" id="nojs">
+  <b>Die Simulation kann in dieser Vorschau nicht laufen.</b>
+  Auf dem iPad bitte nicht in der Dateien-App oder der AirDrop-Vorschau öffnen, sondern über den Link in <b style="display:inline">Safari</b>
+  (bzw. im Teilen-Menü „In Safari öffnen“ wählen).
+</div>
+
+<header>
+  <h1>Volumenänderung von Flüssigkeiten</h1>
+  <span class="sub">Drei Rundkolben mit je 100 ml Flüssigkeit und Steigrohr (Innendurchmesser 6 mm) im selben Wasserbad</span>
+</header>
+
+<main class="layout">
+  <section class="stage" aria-label="Simulation">
+    <div class="statusbar">
+      <div class="reading"><small>Zeit</small><b id="clock">0:00 min</b></div>
+      <div class="reading"><small>Temperatur der Flüssigkeiten</small><b id="tLiq">20,0 °C</b></div>
+      <div class="status" id="status">Bereit – alle Flüssigkeiten haben Zimmertemperatur. Ihr Stand liegt genau an der roten Startmarke.</div>
+    </div>
+    <div class="tempbar">
+      <label for="bath">Wasserbad</label>
+      <input type="range" id="bath" min="0" max="70" step="1" value="20" aria-label="Temperatur des Wasserbads">
+      <output id="bathOut" for="bath">20 °C</output>
+      <div class="presets" id="presets">
+        <button data-t="0" title="Eiswasser">❄ 0 °C</button>
+        <button data-t="20" title="Zimmertemperatur">20 °C</button>
+        <button data-t="40">40 °C</button>
+        <button data-t="60">60 °C</button>
+        <button data-t="70" title="heißes Wasser">♨ 70 °C</button>
+      </div>
+    </div>
+    <div class="canvasWrap" id="wrap">
+      <canvas id="cv" role="img" aria-label="Drei Rundkolben mit Steigrohren und Zentimeterskala in einem Wasserbad"></canvas>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="group">
+      <h2>1 · Vermutung</h2>
+      <div id="guessQ">In welchem Steigrohr steigt die Flüssigkeit beim <b>Erwärmen</b> am höchsten? Tippe deine Vermutung an, bevor du das Wasserbad erwärmst.</div>
+      <div class="guess" id="guess"></div>
+      <div class="verdict wait" id="verdict" hidden></div>
+    </div>
+
+    <div class="group">
+      <h2>2 · Versuch</h2>
+      <div id="flaskSel"></div>
+      <div class="btns">
+        <button class="primary" id="btnPause">⏸ Pause</button>
+        <button id="btnReset">↺ Zurücksetzen</button>
+      </div>
+      <div class="field">
+        <span>Zeitraffer</span>
+        <select id="selSpeed">
+          <option value="1">Echtzeit</option>
+          <option value="5" selected>5-mal schneller</option>
+          <option value="20">20-mal schneller</option>
+        </select>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="chkValues" checked>
+        <span>Steighöhe Δh im Bild anzeigen<small>Ausschalten, wenn die Höhe selbst an der Skala abgelesen werden soll</small></span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="chkParticles">
+        <span>Teilchenmodell anzeigen<small>Lupe zeigt die Teilchen jeder Flüssigkeit (stark vergrößert, Effekt übertrieben)</small></span>
+      </label>
+      <p class="hint">Mit dem Regler oder den Knöpfen über dem Bild stellst du die Temperatur des Wasserbads ein. Die Flüssigkeiten nehmen diese Temperatur langsam an.</p>
+    </div>
+
+    <div class="group">
+      <h2>3 · Messwerte</h2>
+      <div class="btns" style="margin-top:0">
+        <button class="primary wide" id="btnRecord">＋ Messwert aufnehmen</button>
+        <button id="btnUndo">Letzten löschen</button>
+        <button id="btnCopy">Tabelle kopieren</button>
+      </div>
+      <div class="tableWrap">
+        <table class="data" id="table" aria-label="Messwerttabelle"></table>
+      </div>
+      <p class="hint" id="copyHint">Tipp: Erst messen, wenn sich der Flüssigkeitsstand nicht mehr ändert (Temperaturausgleich).</p>
+    </div>
+
+    <div class="group">
+      <h2>4 · Diagramm: Steighöhe über Temperatur</h2>
+      <div class="legend" id="legend"></div>
+      <div class="chartWrap" id="chartWrap">
+        <canvas id="chart" role="img" aria-label="Diagramm der Steighöhe Δh in Abhängigkeit von der Temperatur"></canvas>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="chkCurves">
+        <span>Verlauf aller Temperaturen einblenden<small>Zeigt die vollständigen Kurven von 0 °C bis 70 °C</small></span>
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>5 · Auswertung &amp; Wissen</h2>
+      <details>
+        <summary>Aufgaben</summary>
+        <ol>
+          <li>Notiere deine Vermutung und begründe sie.</li>
+          <li>Erwärme das Wasserbad auf 30 °C, 40 °C, 50 °C, 60 °C und 70 °C. Nimm jeweils nach dem Temperaturausgleich einen Messwert auf.</li>
+          <li>Ordne die Flüssigkeiten nach ihrer Volumenänderung. Formuliere einen Je-desto-Satz zur Temperatur.</li>
+          <li>Kühle die Flüssigkeiten im Eiswasser (0 °C) ab. Beschreibe, was du beobachtest.</li>
+          <li>Erkläre die Beobachtungen mit dem Teilchenmodell.</li>
+          <li>Vergleiche die Form der Kurven im Diagramm. Was fällt dir bei Wasser auf?</li>
+        </ol>
+      </details>
+      <details>
+        <summary>Merksatz</summary>
+        <div class="merke">
+          Flüssigkeiten <b>dehnen sich beim Erwärmen aus</b> und <b>ziehen sich beim Abkühlen zusammen</b>.
+          Wie stark sich das Volumen ändert, hängt vom <b>Stoff</b> ab: Spiritus dehnt sich viel stärker aus als Öl, Öl stärker als Wasser.
+        </div>
+      </details>
+      <details>
+        <summary>Erklärung mit dem Teilchenmodell</summary>
+        <p>Alle Stoffe bestehen aus kleinsten Teilchen, die sich ständig bewegen. Je höher die Temperatur, desto heftiger bewegen sich die Teilchen. Sie stoßen sich dabei weiter voneinander weg und brauchen mehr Platz – das Volumen wird größer.</p>
+        <p>Zwischen den Teilchen wirken Anziehungskräfte. Diese sind bei jedem Stoff unterschiedlich stark. Halten sich die Teilchen nur schwach fest (z.&nbsp;B. bei Spiritus), dehnt sich der Stoff stark aus. Halten sie sich stark fest (z.&nbsp;B. bei Wasser), dehnt er sich nur wenig aus.</p>
+      </details>
+      <details>
+        <summary>Stoffwerte</summary>
+        <p>So viel Milliliter mehr Volumen hat <b>1 Liter</b> der Flüssigkeit, wenn sie um <b>1 °C</b> wärmer wird (bei etwa 20 °C):</p>
+        <table id="matTable"></table>
+        <p>Wasser verhält sich besonders: Es dehnt sich bei höheren Temperaturen stärker aus als bei niedrigen (die Kurve im Diagramm ist gekrümmt). Unterhalb von 4 °C dehnt es sich beim Abkühlen sogar wieder aus – die <b>Anomalie des Wassers</b>.</p>
+      </details>
+      <details>
+        <summary>Alltag &amp; Technik</summary>
+        <ul>
+          <li><b>Flüssigkeitsthermometer</b> funktionieren genau wie diese Steigrohre – nur mit einem sehr dünnen Röhrchen (Kapillare), damit schon kleine Temperaturänderungen gut sichtbar werden.</li>
+          <li>Getränkeflaschen und Heizöltanks werden <b>nie randvoll</b> gefüllt.</li>
+          <li>Heizungsanlagen haben ein <b>Ausdehnungsgefäß</b>.</li>
+          <li>Wer im Sommer morgens tankt, bekommt etwas mehr Benzin für sein Geld als mittags.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Hinweise für Lehrkräfte</summary>
+        <ul>
+          <li>Modell: Rundkolben mit V₀ = 100 ml (bei 20 °C), Steigrohr mit 6 mm Innendurchmesser. Die Steighöhe ist Δh = ΔV / A.</li>
+          <li>Wasser wird mit der realen, temperaturabhängigen Dichte gerechnet (gekrümmte Kurve, Dichtemaximum bei 4 °C). Für die anderen Flüssigkeiten gilt ein konstanter Volumenausdehnungskoeffizient.</li>
+          <li>Vereinfachungen: Die Ausdehnung des Glases wird vernachlässigt (im Realversuch sinkt der Stand zu Beginn kurz ab, weil sich zuerst das Glas erwärmt). Alle Kolben erwärmen sich gleich schnell, damit zu jedem Zeitpunkt gleiche Temperaturen verglichen werden.</li>
+          <li>Die Höchsttemperatur ist 70 °C, weil Spiritus schon bei etwa 78 °C siedet.</li>
+          <li>Quecksilber ist giftig und nur als Vergleich (Thermometerflüssigkeit) aufgeführt.</li>
+        </ul>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  document.getElementById('nojs').hidden = true;
+
+  // ---------- Physik ----------
+  const V0 = 100;                       // ml (cm³) bei 20 °C
+  const T0 = 20;                        // °C
+  const D_TUBE = 0.6;                   // cm
+  const A_TUBE = Math.PI * (D_TUBE / 2) ** 2;   // cm²
+  const TAU = 30;                       // s – Zeitkonstante des Temperaturausgleichs
+
+  const LIQ = {
+    wasser:      { name: 'Wasser',      gamma: null,     fill: 'rgba(70,150,235,0.55)',  dot: '#3f8fe0', note: '0,21 (bei 20 °C)' },
+    spiritus:    { name: 'Spiritus',    gamma: 1.10e-3,  fill: 'rgba(128,84,220,0.62)',  dot: '#7a50d6' },
+    oel:         { name: 'Speiseöl',    gamma: 0.72e-3,  fill: 'rgba(236,182,25,0.75)',  dot: '#d29a00' },
+    petroleum:   { name: 'Petroleum',   gamma: 0.96e-3,  fill: 'rgba(222,72,72,0.58)',   dot: '#cf3e3e' },
+    glycerin:    { name: 'Glycerin',    gamma: 0.50e-3,  fill: 'rgba(175,215,200,0.70)', dot: '#6fae98' },
+    quecksilber: { name: 'Quecksilber', gamma: 0.181e-3, fill: '#aeb5bf',                dot: '#8b929c', metal: true }
+  };
+  const ORDER = ['wasser', 'spiritus', 'oel', 'petroleum', 'glycerin', 'quecksilber'];
+
+  // Dichte von Wasser (Thiesen-Formel), kg/m³, gültig 0–100 °C
+  function rhoWater(T) {
+    return 1000 * (1 - (T + 288.9414) / (508929.2 * (T + 68.12963)) * (T - 3.9863) ** 2);
+  }
+  const RHO20 = rhoWater(T0);
+  function volFactor(key, T) {
+    const l = LIQ[key];
+    if (l.gamma === null) return RHO20 / rhoWater(T);
+    return 1 + l.gamma * (T - T0);
+  }
+  function deltaH(key, T) { return (volFactor(key, T) - 1) * V0 / A_TUBE; } // cm
+
+  // ---------- Zustand ----------
+  const SLOTS = ['A', 'B', 'C'];
+  const state = {
+    liquids: ['wasser', 'spiritus', 'oel'],
+    Tbath: 20,
+    T: 20,
+    time: 0,
+    running: true,
+    speed: 5,
+    rows: [],
+    guess: null,
+    showValues: true,
+    showParticles: false,
+    showCurves: false
+  };
+
+  // ---------- Formatierung ----------
+  const fmt = (x, d = 1) => x.toFixed(d).replace('.', ',').replace(/^-(0,0+)$/, '$1');
+  const fmtS = (x, d = 1) => { const s = fmt(x, d); return (x >= 0.05 || s.startsWith('-')) ? (s.startsWith('-') ? '−' + s.slice(1) : '+' + s) : '±' + fmt(0, d); };
+  function fmtTime(t) {
+    const m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return m + ':' + String(s).padStart(2, '0') + ' min';
+  }
+
+  // ---------- Farben aus CSS ----------
+  let C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = n => cs.getPropertyValue(n).trim();
+    C = {
+      surface: g('--surface'), surface2: g('--surface-2'), text: g('--text'), muted: g('--muted'),
+      border: g('--border'), glass: g('--glass'), glassSoft: g('--glass-soft'), grid: g('--grid'),
+      s: [g('--s1'), g('--s2'), g('--s3')],
+      dark: (cs.getPropertyValue('color-scheme') || '').includes('dark') ||
+            window.matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light'
+    };
+  }
+  readColors();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { readColors(); drawChart(); });
+
+  // ---------- UI: Kolbenauswahl ----------
+  const flaskSel = document.getElementById('flaskSel');
+  const SHAPES = ['s1', 's2', 's3'];
+  SLOTS.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'flaskRow';
+    row.innerHTML = `<span class="tag ${SHAPES[i]}">${s}</span>
+      <select aria-label="Flüssigkeit in Kolben ${s}">${ORDER.map(k => `<option value="${k}">${LIQ[k].name}</option>`).join('')}</select>
+      <span class="swatch"></span>`;
+    const sel = row.querySelector('select');
+    sel.value = state.liquids[i];
+    sel.addEventListener('change', () => {
+      state.liquids[i] = sel.value;
+      resetExperiment('Kolben ' + s + ' wurde neu mit ' + LIQ[sel.value].name + ' gefüllt – der Versuch beginnt von vorn.');
+    });
+    flaskSel.appendChild(row);
+  });
+  function updateSwatches() {
+    flaskSel.querySelectorAll('.flaskRow').forEach((row, i) => {
+      const l = LIQ[state.liquids[i]];
+      row.querySelector('.swatch').style.background = l.metal ? 'linear-gradient(90deg,#7d848e,#e3e7ec,#8b929c)' : l.fill;
+    });
+  }
+
+  // ---------- UI: Vermutung ----------
+  const guessEl = document.getElementById('guess');
+  const verdictEl = document.getElementById('verdict');
+  function buildGuess() {
+    guessEl.innerHTML = '';
+    SLOTS.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.innerHTML = `<span class="tag ${SHAPES[i]}">${s}</span>${LIQ[state.liquids[i]].name}`;
+      b.addEventListener('click', () => setGuess(i));
+      guessEl.appendChild(b);
+    });
+    const b = document.createElement('button');
+    b.textContent = '= alle gleich hoch';
+    b.addEventListener('click', () => setGuess(3));
+    guessEl.appendChild(b);
+    markGuess();
+  }
+  function setGuess(i) { state.guess = i; markGuess(); evaluateGuess(); }
+  function markGuess() {
+    [...guessEl.children].forEach((b, i) => {
+      b.classList.toggle('on', state.guess === i);
+      b.setAttribute('aria-pressed', state.guess === i ? 'true' : 'false');
+    });
+  }
+  let lastVerdict = '';
+  function evaluateGuess() {
+    if (state.guess === null) { verdictEl.hidden = true; lastVerdict = ''; return; }
+    const g = state.guess;
+    const guessName = g === 3 ? '„alle gleich hoch“' : 'Kolben ' + SLOTS[g] + ' (' + LIQ[state.liquids[g]].name + ')';
+    const settled = Math.abs(state.Tbath - state.T) < 0.3;
+    let cls, html;
+    if (!(state.T >= 40 && settled)) {
+      cls = 'wait';
+      html = `Deine Vermutung: <b>${guessName}</b>.<br>Überprüfe sie: Erwärme das Wasserbad auf mindestens 40 °C und warte den Temperaturausgleich ab.`;
+    } else {
+      const h = state.liquids.map(k => deltaH(k, state.T));
+      const max = Math.max(...h);
+      const winners = h.map((v, i) => Math.abs(v - max) < 0.05 ? i : -1).filter(i => i >= 0);
+      const allSame = winners.length === 3;
+      const ok = g === 3 ? allSame : (!allSame && winners.includes(g));
+      const winText = allSame ? 'In allen Kolben steigt die Flüssigkeit gleich hoch.'
+        : 'Am höchsten steigt ' + winners.map(i => LIQ[state.liquids[i]].name + ' (Kolben ' + SLOTS[i] + ')').join(' und ') + '.';
+      cls = ok ? 'ok' : 'no';
+      html = (ok ? '✔ <b>Deine Vermutung stimmt!</b> ' : '✘ <b>Deine Vermutung stimmt nicht.</b> ') + winText +
+        (allSame ? '' : ' Gleiche Menge, gleiche Temperatur – und trotzdem unterschiedliche Steighöhen: Die Volumenänderung hängt vom Stoff ab.');
+    }
+    if (html !== lastVerdict) {
+      verdictEl.className = 'verdict ' + cls;
+      verdictEl.innerHTML = html;
+      verdictEl.hidden = false;
+      lastVerdict = html;
+    }
+  }
+
+  // ---------- UI: Wasserbad ----------
+  const bath = document.getElementById('bath');
+  const bathOut = document.getElementById('bathOut');
+  function setBath(t) {
+    state.Tbath = t;
+    bath.value = t;
+    bathOut.textContent = t + ' °C';
+    document.querySelectorAll('#presets button').forEach(b => b.classList.toggle('on', +b.dataset.t === t));
+  }
+  bath.addEventListener('input', () => setBath(+bath.value));
+  document.querySelectorAll('#presets button').forEach(b => b.addEventListener('click', () => setBath(+b.dataset.t)));
+
+  // ---------- UI: Steuerung ----------
+  const btnPause = document.getElementById('btnPause');
+  btnPause.addEventListener('click', () => {
+    state.running = !state.running;
+    btnPause.textContent = state.running ? '⏸ Pause' : '▶ Weiter';
+  });
+  document.getElementById('btnReset').addEventListener('click', () => resetExperiment());
+  document.getElementById('selSpeed').addEventListener('change', e => { state.speed = +e.target.value; });
+  document.getElementById('chkValues').addEventListener('change', e => { state.showValues = e.target.checked; });
+  document.getElementById('chkParticles').addEventListener('change', e => { state.showParticles = e.target.checked; });
+  document.getElementById('chkCurves').addEventListener('change', e => { state.showCurves = e.target.checked; drawChart(); });
+
+  let resetNote = '';
+  function resetExperiment(note) {
+    state.T = 20; state.time = 0; state.rows = [];
+    setBath(20);
+    state.guess = null;
+    resetNote = note || '';
+    state.running = true; btnPause.textContent = '⏸ Pause';
+    updateSwatches(); buildGuess(); buildLegend(); renderTable(); evaluateGuess(); drawChart();
+  }
+
+  // ---------- Messwerte ----------
+  const tableEl = document.getElementById('table');
+  const copyHint = document.getElementById('copyHint');
+  document.getElementById('btnRecord').addEventListener('click', () => {
+    if (state.rows.length >= 40) return;
+    const T = Math.round(state.T * 10) / 10;
+    state.rows.push({ T, h: state.liquids.map(k => Math.round(deltaH(k, state.T) * 10) / 10) });
+    renderTable(); drawChart();
+    const w = tableEl.parentElement; w.scrollTop = w.scrollHeight;
+  });
+  document.getElementById('btnUndo').addEventListener('click', () => { state.rows.pop(); renderTable(); drawChart(); });
+  document.getElementById('btnCopy').addEventListener('click', () => {
+    const head = ['Nr.', 'Temperatur in °C'].concat(SLOTS.map((s, i) => 'Δh ' + s + ' ' + LIQ[state.liquids[i]].name + ' in cm'));
+    const lines = [head.join('\t')].concat(state.rows.map((r, n) => [n + 1, fmt(r.T)].concat(r.h.map(v => fmt(v))).join('\t')));
+    const text = lines.join('\n');
+    const done = ok => { copyHint.textContent = ok ? 'Tabelle kopiert – sie kann z. B. in eine Tabellenkalkulation eingefügt werden.' : 'Kopieren hat nicht geklappt. Bitte die Werte abschreiben.'; };
+    try {
+      navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+    } catch (e) { done(false); }
+  });
+  function renderTable() {
+    const names = state.liquids.map(k => LIQ[k].name);
+    let h = `<thead><tr><th rowspan="2">Nr.</th><th rowspan="2">ϑ in °C</th><th colspan="3" style="text-align:center">Steighöhe Δh in cm</th></tr>
+      <tr>${SLOTS.map((s, i) => `<th><span class="mk ${SHAPES[i]}"></span>${s} ${names[i]}</th>`).join('')}</tr></thead><tbody>`;
+    if (!state.rows.length) h += '<tr class="empty"><td colspan="5">Noch keine Messwerte</td></tr>';
+    state.rows.forEach((r, n) => {
+      h += `<tr><td>${n + 1}</td><td>${fmt(r.T)}</td>${r.h.map(v => `<td>${fmtS(v)}</td>`).join('')}</tr>`;
+    });
+    tableEl.innerHTML = h + '</tbody>';
+    document.getElementById('btnUndo').disabled = !state.rows.length;
+    document.getElementById('btnCopy').disabled = !state.rows.length;
+  }
+
+  // Stoffwerte-Tabelle
+  document.getElementById('matTable').innerHTML =
+    '<tr><th>Flüssigkeit</th><th>Zunahme pro Liter und °C</th></tr>' +
+    ORDER.slice().sort((a, b) => (LIQ[b].gamma ?? 0.207e-3) - (LIQ[a].gamma ?? 0.207e-3))
+      .map(k => `<tr><td>${LIQ[k].name}</td><td>${LIQ[k].note || fmt(LIQ[k].gamma * 1000, 2)} ml</td></tr>`).join('');
+
+  // ---------- Legende ----------
+  const legendEl = document.getElementById('legend');
+  function buildLegend() {
+    legendEl.innerHTML = SLOTS.map((s, i) => `<span><span class="mk ${SHAPES[i]}"></span>${s}: ${LIQ[state.liquids[i]].name}</span>`).join('');
+  }
+
+  // ---------- Szene (Canvas) ----------
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const wrap = document.getElementById('wrap');
+  const W = 900, H = 720;
+  const G = {
+    xs: [235, 450, 665],
+    tubeTop: 62, y0: 292, pxPerCm: 9, hMin: -10, hMax: 25,
+    stopTop: 386, stopBot: 414,
+    bulbY: 582, bulbR: 60, neckW: 26,
+    bathL: 110, bathR: 830, bathTop: 440, waterY: 462, bathBot: 662,
+    plateTop: 668, plateBot: 708,
+    thX: 795
+  };
+  let view = { s: 1, ox: 0, oy: 0, dpr: 1 };
+  function resize() {
+    const r = wrap.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cv.width = Math.max(1, Math.round(r.width * dpr));
+    cv.height = Math.max(1, Math.round(r.height * dpr));
+    const s = Math.min(r.width / W, r.height / H);
+    view = { s, ox: (r.width - W * s) / 2, oy: (r.height - H * s) / 2, dpr };
+    sizeChart();
+  }
+  new ResizeObserver(resize).observe(wrap);
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  function mix(c1, c2, t) { return c1.map((v, i) => lerp(v, c2[i], t)); }
+  function rgba(c) { return `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${c[3].toFixed(3)})`; }
+  function bathColor(T) {
+    const cold = [90, 160, 235, 0.40], room = [120, 180, 230, 0.28], hot = [235, 125, 85, 0.28];
+    return T <= 20 ? mix(cold, room, T / 20) : mix(room, hot, (T - 20) / 50);
+  }
+  const yOf = h => G.y0 - h * G.pxPerCm;
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+  }
+  function flaskPath(cx) {
+    // Kolbenkörper (Kugel) + Hals als ein Umriss
+    const R = G.bulbR, hw = G.neckW / 2, by = G.bulbY;
+    const a = Math.asin(hw / R);
+    ctx.beginPath();
+    ctx.moveTo(cx - hw, G.stopBot - 6);
+    ctx.lineTo(cx - hw, by - R * Math.cos(a));
+    ctx.arc(cx, by, R, -Math.PI / 2 - a, -Math.PI / 2 + a, true);
+    ctx.lineTo(cx + hw, G.stopBot - 6);
+  }
+  function liquidFill(key, x, y, w, h) {
+    const l = LIQ[key];
+    if (l.metal) {
+      const g = ctx.createLinearGradient(x, 0, x + w, 0);
+      g.addColorStop(0, '#6f7680'); g.addColorStop(0.35, '#eef1f4'); g.addColorStop(0.6, '#b9c0c9'); g.addColorStop(1, '#6a717b');
+      return g;
+    }
+    return l.fill;
+  }
+
+  // Teilchen für die Lupe (fest verteilte Gitterplätze + Zufallsversatz)
+  const particles = SLOTS.map(() => {
+    const arr = [];
+    for (let j = -8; j <= 8; j++) for (let i = -8; i <= 8; i++) {
+      arr.push({
+        bx: i + (j & 1) * 0.5 + (Math.random() - 0.5) * 0.3,
+        by: j * 0.87 + (Math.random() - 0.5) * 0.3,
+        p1: Math.random() * 6.3, p2: Math.random() * 6.3,
+        k1: 0.7 + Math.random() * 0.8, k2: 0.7 + Math.random() * 0.8
+      });
+    }
+    return arr;
+  });
+
+  let anim = 0; // Animationszeit (für Dampf und Teilchen)
+  function draw() {
+    const { s, ox, oy, dpr } = view;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = C.surface;
+    ctx.fillRect(0, 0, cv.width / dpr, cv.height / dpr);
+    ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+
+    const T = state.T, Tb = state.Tbath;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+    // --- Heizplatte ---
+    const heat = clamp((Tb - 22) / 48, 0, 1);
+    roundRect(G.bathL - 10, G.plateTop, G.bathR - G.bathL + 20, G.plateBot - G.plateTop, 8);
+    ctx.fillStyle = C.dark ? '#3a4352' : '#58616f'; ctx.fill();
+    ctx.fillStyle = C.dark ? '#262d38' : '#3c4350';
+    ctx.fillRect(G.bathL + 10, G.plateTop, G.bathR - G.bathL - 20, 6);
+    if (heat > 0) {
+      ctx.fillStyle = `rgba(255,${Math.round(lerp(150, 70, heat))},40,${(0.35 + 0.6 * heat).toFixed(2)})`;
+      ctx.fillRect(G.bathL + 10, G.plateTop, G.bathR - G.bathL - 20, 6);
+    }
+    ctx.fillStyle = '#e8ecf1'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(heat > 0 ? 'Heizplatte – an' : 'Heizplatte – aus', G.bathL + 6, (G.plateTop + G.plateBot) / 2 + 3);
+    // Lämpchen
+    ctx.beginPath(); ctx.arc(G.bathR - 14, (G.plateTop + G.plateBot) / 2 + 3, 6, 0, 7);
+    ctx.fillStyle = heat > 0 ? '#ff5a3c' : '#2a2f38'; ctx.fill();
+
+    // --- Wasserbad: Wasser ---
+    ctx.fillStyle = rgba(bathColor(Tb));
+    roundRect(G.bathL, G.waterY, G.bathR - G.bathL, G.bathBot - G.waterY, 14);
+    ctx.fill();
+
+    // Eiswürfel
+    if (Tb <= 5) {
+      const ice = [[160, 0], [370, 1], [560, 2], [735, 3], [300, 4]];
+      ice.forEach(([x, k]) => {
+        const bob = Math.sin(anim * 1.3 + k) * 2;
+        ctx.save(); ctx.translate(x, G.waterY + 4 + bob); ctx.rotate(0.12 * (k % 2 ? 1 : -1));
+        roundRect(-15, -12, 30, 24, 4);
+        ctx.fillStyle = 'rgba(235,245,255,0.85)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(140,180,220,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.restore();
+      });
+    }
+
+    // --- Kolben ---
+    G.xs.forEach((cx, i) => drawFlask(cx, i, T));
+
+    // Wasser vor den Kolben (leicht), Oberfläche
+    ctx.save();
+    ctx.beginPath(); ctx.rect(G.bathL, G.waterY, G.bathR - G.bathL, G.bathBot - G.waterY); ctx.clip();
+    const bc = bathColor(Tb); bc[3] *= 0.22;
+    ctx.fillStyle = rgba(bc);
+    ctx.fillRect(G.bathL, G.waterY, G.bathR - G.bathL, G.bathBot - G.waterY);
+    ctx.restore();
+    ctx.strokeStyle = rgba([...bathColor(Tb).slice(0, 3), 0.9]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(G.bathL + 3, G.waterY); ctx.lineTo(G.bathR - 3, G.waterY); ctx.stroke();
+
+    // Wanne (Glas)
+    ctx.strokeStyle = C.glass; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(G.bathL, G.bathTop);
+    ctx.lineTo(G.bathL, G.bathBot - 14); ctx.quadraticCurveTo(G.bathL, G.bathBot, G.bathL + 14, G.bathBot);
+    ctx.lineTo(G.bathR - 14, G.bathBot); ctx.quadraticCurveTo(G.bathR, G.bathBot, G.bathR, G.bathBot - 14);
+    ctx.lineTo(G.bathR, G.bathTop);
+    ctx.stroke();
+
+    // Dampf
+    if (Tb >= 45) {
+      const a = clamp((Tb - 45) / 25, 0, 1) * 0.45;
+      ctx.strokeStyle = C.dark ? `rgba(220,230,240,${a})` : `rgba(130,140,155,${a})`;
+      ctx.lineWidth = 3;
+      [150, 340, 555, 760].forEach((x, k) => {
+        const ph = (anim * 0.35 + k * 0.27) % 1;
+        const yb = G.waterY - 6 - ph * 50;
+        ctx.globalAlpha = 1 - ph;
+        ctx.beginPath();
+        for (let y = 0; y <= 34; y += 2) {
+          const xx = x + Math.sin((y + anim * 40 + k * 20) / 7) * 5;
+          if (y === 0) ctx.moveTo(xx, yb - y); else ctx.lineTo(xx, yb - y);
+        }
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    drawBathThermometer(Tb);
+
+    // Teilchenlupen
+    if (state.showParticles) G.xs.forEach((cx, i) => drawParticles(cx, i, T));
+  }
+
+  function drawFlask(cx, i, T) {
+    const key = state.liquids[i];
+    const l = LIQ[key];
+    const h = deltaH(key, T);
+    const yLevel = clamp(yOf(h), G.tubeTop + 4, G.stopBot);
+    const tubeHalfIn = 3.5, tubeHalfOut = 6;
+
+    // Flüssigkeit im Kolben
+    ctx.save();
+    flaskPath(cx); ctx.closePath();
+    ctx.fillStyle = liquidFill(key, cx - G.bulbR, 0, G.bulbR * 2, 0);
+    ctx.fill();
+    ctx.restore();
+
+    // Flüssigkeit im Steigrohr
+    ctx.fillStyle = liquidFill(key, cx - tubeHalfIn, 0, tubeHalfIn * 2, 0);
+    ctx.fillRect(cx - tubeHalfIn, yLevel, tubeHalfIn * 2, G.stopBot - yLevel);
+    // Meniskus (Quecksilber gewölbt, sonst leicht nach unten)
+    ctx.strokeStyle = l.metal ? '#5f666f' : rgba([...hexToRgb(l.dot), 1]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (l.metal) { ctx.moveTo(cx - tubeHalfIn, yLevel + 1.5); ctx.quadraticCurveTo(cx, yLevel - 2.5, cx + tubeHalfIn, yLevel + 1.5); }
+    else { ctx.moveTo(cx - tubeHalfIn, yLevel - 1); ctx.quadraticCurveTo(cx, yLevel + 2.5, cx + tubeHalfIn, yLevel - 1); }
+    ctx.stroke();
+
+    // Glasrohr
+    ctx.strokeStyle = C.glass; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx - tubeHalfOut, G.stopTop + 6); ctx.lineTo(cx - tubeHalfOut, G.tubeTop);
+    ctx.moveTo(cx + tubeHalfOut, G.stopTop + 6); ctx.lineTo(cx + tubeHalfOut, G.tubeTop);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - tubeHalfIn, G.stopTop + 6); ctx.lineTo(cx - tubeHalfIn, G.tubeTop);
+    ctx.moveTo(cx + tubeHalfIn, G.stopTop + 6); ctx.lineTo(cx + tubeHalfIn, G.tubeTop);
+    ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, G.tubeTop, tubeHalfOut, 2, 0, 0, 7); ctx.stroke();
+
+    // Kolbenglas
+    ctx.lineWidth = 2.6; ctx.strokeStyle = C.glass;
+    flaskPath(cx); ctx.stroke();
+    // Glanzlicht
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(cx, G.bulbY, G.bulbR - 12, Math.PI * 1.08, Math.PI * 1.38); ctx.stroke();
+
+    // Stopfen
+    ctx.beginPath();
+    ctx.moveTo(cx - 19, G.stopTop); ctx.lineTo(cx + 19, G.stopTop);
+    ctx.lineTo(cx + 14, G.stopBot); ctx.lineTo(cx - 14, G.stopBot); ctx.closePath();
+    ctx.fillStyle = C.dark ? '#7a5a45' : '#8a634a'; ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(cx - tubeHalfOut, G.stopTop, tubeHalfOut * 2, G.stopBot - G.stopTop);
+    ctx.fillStyle = liquidFill(key, cx - tubeHalfIn, 0, tubeHalfIn * 2, 0);
+    ctx.fillRect(cx - tubeHalfIn, Math.max(G.stopTop, yLevel), tubeHalfIn * 2, G.stopBot - Math.max(G.stopTop, yLevel));
+
+    // Skala (cm)
+    const sx = cx + 10;
+    ctx.strokeStyle = C.muted; ctx.fillStyle = C.muted; ctx.lineWidth = 1;
+    ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.beginPath(); ctx.moveTo(sx, yOf(G.hMin)); ctx.lineTo(sx, yOf(G.hMax)); ctx.stroke();
+    for (let k = G.hMin * 2; k <= G.hMax * 2; k++) {
+      const v = k / 2, y = yOf(v);
+      const len = k % 10 === 0 ? 12 : (k % 2 === 0 ? 8 : 4);
+      ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + len, y); ctx.stroke();
+      if (k % 10 === 0) ctx.fillText((v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v), sx + 15, y);
+    }
+    ctx.fillText('cm', sx + 15, yOf(G.hMax) - 12);
+
+    // Startmarke (roter Gummiring)
+    ctx.fillStyle = '#d6332b';
+    ctx.fillRect(cx - tubeHalfOut - 3, G.y0 - 2, tubeHalfOut * 2 + 6, 4);
+
+    // Kopf: Kennung + Name
+    const col = C.s[i];
+    ctx.font = '700 15px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    const name = l.name;
+    const nw = ctx.measureText(name).width;
+    const total = 24 + 7 + nw;
+    const x0 = cx - total / 2;
+    drawMarker(i, x0 + 12, 20, 12, col);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '700 12px system-ui, sans-serif';
+    ctx.fillText(SLOTS[i], x0 + 12, i === 2 ? 23 : 20.5);
+    ctx.fillStyle = C.text; ctx.textAlign = 'left'; ctx.font = '700 15px system-ui, sans-serif';
+    ctx.fillText(name, x0 + 31, 20.5);
+    if (state.showValues) {
+      ctx.font = '600 14px ui-monospace, Consolas, monospace'; ctx.textAlign = 'center';
+      ctx.fillStyle = C.text;
+      ctx.fillText('Δh = ' + fmtS(h) + ' cm', cx, 44);
+    }
+  }
+
+  function drawMarker(i, x, y, r, col) {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    if (i === 0) ctx.arc(x, y, r, 0, Math.PI * 2);
+    else if (i === 1) { roundRect(x - r * 0.92, y - r * 0.92, r * 1.84, r * 1.84, r * 0.3); }
+    else { ctx.moveTo(x, y - r * 1.05); ctx.lineTo(x + r * 1.1, y + r * 0.9); ctx.lineTo(x - r * 1.1, y + r * 0.9); ctx.closePath(); }
+    ctx.fill();
+  }
+
+  function hexToRgb(h) {
+    const m = h.replace('#', '');
+    return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)];
+  }
+
+  function drawBathThermometer(Tb) {
+    const x = G.thX, top = 300, bot = 612, tMin = -10, tMax = 80;
+    const yT = t => bot - 14 - (t - tMin) / (tMax - tMin) * (bot - 14 - top - 8);
+    // Rohr
+    roundRect(x - 7, top, 14, bot - top, 7);
+    ctx.fillStyle = C.dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.85)'; ctx.fill();
+    ctx.strokeStyle = C.glass; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, bot, 11, 0, 7);
+    ctx.fillStyle = '#d6332b'; ctx.fill(); ctx.strokeStyle = C.glass; ctx.stroke();
+    ctx.fillStyle = '#d6332b';
+    const yv = yT(Tb);
+    ctx.fillRect(x - 2.5, yv, 5, bot - yv);
+    // Skala
+    ctx.strokeStyle = C.muted; ctx.fillStyle = C.muted; ctx.lineWidth = 1;
+    ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let t = tMin; t <= tMax; t += 5) {
+      const y = yT(t), long = t % 10 === 0;
+      ctx.beginPath(); ctx.moveTo(x - 8, y); ctx.lineTo(x - (long ? 15 : 11), y); ctx.stroke();
+      if (t % 20 === 0) ctx.fillText(String(t).replace('-', '−'), x - 18, y);
+    }
+    ctx.textAlign = 'center';
+    ctx.fillText('°C', x, top - 10);
+    // Anzeige
+    ctx.font = '700 15px ui-monospace, Consolas, monospace'; ctx.fillStyle = C.text;
+    ctx.fillText(Tb + ' °C', x, top - 48);
+    ctx.font = '12px system-ui, sans-serif'; ctx.fillStyle = C.muted;
+    ctx.fillText('Wasserbad', x, top - 30);
+  }
+
+  function drawParticles(cx, i, T) {
+    const key = state.liquids[i];
+    const l = LIQ[key];
+    const bx = cx - 82, by = 178, R = 52;
+    const f = 1 + 5 * (volFactor(key, T) - 1);   // Abstand (übertrieben)
+    const sp = 12.5 * f;
+    const heat = clamp((T + 5) / 75, 0, 1);
+    const amp = sp * (0.06 + 0.24 * heat);
+    const om = 1.5 + 7 * heat;
+    // Verbindungslinie zum Kolben
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(bx + R * 0.7, by + R * 0.7); ctx.lineTo(cx - 20, G.bulbY - 20); ctx.stroke();
+    ctx.setLineDash([]);
+    // Lupe
+    ctx.save();
+    ctx.beginPath(); ctx.arc(bx, by, R, 0, 7);
+    ctx.fillStyle = C.surface; ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = l.metal ? '#8b929c' : l.dot;
+    const pr = 4.6;
+    particles[i].forEach(p => {
+      const x = bx + p.bx * sp + amp * Math.sin(anim * om * p.k1 + p.p1);
+      const y = by + p.by * sp + amp * Math.cos(anim * om * p.k2 + p.p2);
+      if ((x - bx) ** 2 + (y - by) ** 2 > (R + pr) ** 2) return;
+      ctx.beginPath(); ctx.arc(x, y, pr, 0, 7); ctx.fill();
+    });
+    ctx.restore();
+    ctx.strokeStyle = C.text; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(bx, by, R, 0, 7); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Teilchen', bx, by + R + 12);
+  }
+
+  // ---------- Diagramm ----------
+  const chart = document.getElementById('chart');
+  const cctx = chart.getContext('2d');
+  const chartWrap = document.getElementById('chartWrap');
+  const tip = document.getElementById('tip');
+  const PAD = { l: 40, r: 12, t: 12, b: 34 };
+  const XD = [0, 70], YD = [-10, 25];
+  let cw = 300, ch = 240;
+  function sizeChart() {
+    const r = chartWrap.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cw = r.width; ch = r.height;
+    chart.width = Math.max(1, Math.round(cw * dpr)); chart.height = Math.max(1, Math.round(ch * dpr));
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawChart();
+  }
+  new ResizeObserver(sizeChart).observe(chartWrap);
+  const px = t => PAD.l + (t - XD[0]) / (XD[1] - XD[0]) * (cw - PAD.l - PAD.r);
+  const py = h => PAD.t + (YD[1] - h) / (YD[1] - YD[0]) * (ch - PAD.t - PAD.b);
+
+  function chartMarker(i, x, y, r, col, ring) {
+    cctx.beginPath();
+    if (i === 0) cctx.arc(x, y, r, 0, Math.PI * 2);
+    else if (i === 1) cctx.rect(x - r * 0.9, y - r * 0.9, r * 1.8, r * 1.8);
+    else { cctx.moveTo(x, y - r * 1.1); cctx.lineTo(x + r * 1.05, y + r * 0.8); cctx.lineTo(x - r * 1.05, y + r * 0.8); cctx.closePath(); }
+    if (ring) { cctx.fillStyle = C.surface; cctx.fill(); cctx.strokeStyle = col; cctx.lineWidth = 2; cctx.stroke(); }
+    else { cctx.fillStyle = col; cctx.fill(); cctx.strokeStyle = C.surface; cctx.lineWidth = 1.5; cctx.stroke(); }
+  }
+
+  function drawChart() {
+    if (!cw) return;
+    cctx.clearRect(0, 0, cw, ch);
+    // Gitter
+    cctx.strokeStyle = C.grid; cctx.lineWidth = 1;
+    cctx.fillStyle = C.muted; cctx.font = '11px system-ui, sans-serif';
+    cctx.textAlign = 'right'; cctx.textBaseline = 'middle';
+    for (let h = YD[0]; h <= YD[1]; h += 5) {
+      const y = Math.round(py(h)) + 0.5;
+      cctx.beginPath(); cctx.moveTo(PAD.l, y); cctx.lineTo(cw - PAD.r, y); cctx.stroke();
+      cctx.fillText((h > 0 ? '+' : h < 0 ? '−' : '') + Math.abs(h), PAD.l - 6, y);
+    }
+    cctx.textAlign = 'center'; cctx.textBaseline = 'top';
+    for (let t = XD[0]; t <= XD[1]; t += 10) {
+      const x = Math.round(px(t)) + 0.5;
+      cctx.beginPath(); cctx.moveTo(x, PAD.t); cctx.lineTo(x, ch - PAD.b); cctx.stroke();
+      cctx.fillText(t, x, ch - PAD.b + 5);
+    }
+    // Nulllinie (Startmarke) und 20 °C
+    cctx.strokeStyle = C.muted; cctx.lineWidth = 1;
+    cctx.beginPath(); cctx.moveTo(PAD.l, Math.round(py(0)) + 0.5); cctx.lineTo(cw - PAD.r, Math.round(py(0)) + 0.5); cctx.stroke();
+    cctx.fillStyle = C.muted; cctx.textAlign = 'center'; cctx.textBaseline = 'alphabetic';
+    cctx.fillText('ϑ in °C', (PAD.l + cw - PAD.r) / 2, ch - 3);
+    cctx.save(); cctx.translate(11, (PAD.t + ch - PAD.b) / 2); cctx.rotate(-Math.PI / 2);
+    cctx.textBaseline = 'middle'; cctx.fillText('Δh in cm', 0, 0); cctx.restore();
+
+    // Kurven
+    if (state.showCurves) {
+      state.liquids.forEach((k, i) => {
+        cctx.strokeStyle = C.s[i]; cctx.lineWidth = 2;
+        cctx.beginPath();
+        for (let t = XD[0]; t <= XD[1]; t += 0.5) {
+          const x = px(t), y = py(deltaH(k, t));
+          if (t === XD[0]) cctx.moveTo(x, y); else cctx.lineTo(x, y);
+        }
+        cctx.stroke();
+      });
+    }
+    // Messpunkte
+    state.rows.forEach(r => r.h.forEach((h, i) => chartMarker(i, px(r.T), py(h), 4.5, C.s[i], false)));
+    // aktueller Zustand
+    state.liquids.forEach((k, i) => chartMarker(i, px(state.T), py(deltaH(k, state.T)), 5, C.s[i], true));
+    // Hover
+    if (hover) drawHover();
+  }
+
+  let hover = null;
+  function onChartMove(e) {
+    const r = chart.getBoundingClientRect();
+    hover = { x: e.clientX - r.left, y: e.clientY - r.top };
+    drawChart();
+  }
+  chart.addEventListener('pointermove', onChartMove);
+  chart.addEventListener('pointerdown', onChartMove);
+  chart.addEventListener('pointerleave', () => { hover = null; tip.hidden = true; drawChart(); });
+
+  function drawHover() {
+    const { x, y } = hover;
+    // nächstgelegener Messpunkt
+    let best = null, bd = 18 * 18;
+    state.rows.forEach((r, n) => r.h.forEach((h, i) => {
+      const d = (px(r.T) - x) ** 2 + (py(h) - y) ** 2;
+      if (d < bd) { bd = d; best = { n, i, T: r.T, h }; }
+    }));
+    let html = null;
+    if (best) {
+      html = `<div><b>Messung ${best.n + 1}</b></div><div><i style="background:${C.s[best.i]}"></i>${SLOTS[best.i]} ${LIQ[state.liquids[best.i]].name}</div>` +
+        `<div>ϑ = ${fmt(best.T)} °C · Δh = ${fmtS(best.h)} cm</div>`;
+    } else if (state.showCurves && x >= PAD.l && x <= cw - PAD.r) {
+      const T = clamp(Math.round((XD[0] + (x - PAD.l) / (cw - PAD.l - PAD.r) * (XD[1] - XD[0])) * 2) / 2, XD[0], XD[1]);
+      const X = px(T);
+      cctx.strokeStyle = C.muted; cctx.lineWidth = 1; cctx.setLineDash([3, 3]);
+      cctx.beginPath(); cctx.moveTo(X, PAD.t); cctx.lineTo(X, ch - PAD.b); cctx.stroke(); cctx.setLineDash([]);
+      state.liquids.forEach((k, i) => chartMarker(i, X, py(deltaH(k, T)), 4, C.s[i], false));
+      html = `<div><b>ϑ = ${fmt(T)} °C</b></div>` + state.liquids.map((k, i) =>
+        `<div><i style="background:${C.s[i]}"></i>${SLOTS[i]} ${LIQ[k].name}: ${fmtS(deltaH(k, T))} cm</div>`).join('');
+    }
+    if (!html) { tip.hidden = true; return; }
+    if (tip.innerHTML !== html) tip.innerHTML = html;
+    tip.hidden = false;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let left = x + 12; if (left + tw > cw) left = x - tw - 12;
+    let top = y - th - 10; if (top < 0) top = y + 14;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = top + 'px';
+  }
+
+  // ---------- Statusanzeigen ----------
+  const clockEl = document.getElementById('clock');
+  const tLiqEl = document.getElementById('tLiq');
+  const statusEl = document.getElementById('status');
+  let lastStatus = '';
+  function updateStatus() {
+    clockEl.textContent = fmtTime(state.time);
+    tLiqEl.textContent = fmt(state.T) + ' °C';
+    const d = state.Tbath - state.T;
+    let msg;
+    if (!state.running) msg = 'Pausiert.';
+    else if (Math.abs(d) > 0.15) msg = d > 0 ? 'Die Flüssigkeiten werden vom Wasserbad erwärmt …' : 'Die Flüssigkeiten werden vom Wasserbad abgekühlt …';
+    else if (Math.abs(state.T - 20) < 0.15) msg = resetNote || 'Alle Flüssigkeiten haben Zimmertemperatur. Ihr Stand liegt genau an der roten Startmarke.';
+    else msg = 'Temperaturausgleich erreicht – jetzt kann gemessen werden.';
+    if (Math.abs(d) > 0.15 || Math.abs(state.T - 20) >= 0.15) resetNote = '';
+    if (msg !== lastStatus) { statusEl.textContent = msg; lastStatus = msg; }
+  }
+
+  // ---------- Hauptschleife ----------
+  let last = performance.now(), chartTimer = 0;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    if (state.running) {
+      anim += dt;
+      const sdt = dt * state.speed;
+      const prevT = state.T;
+      state.T = state.Tbath + (state.T - state.Tbath) * Math.exp(-sdt / TAU);
+      if (Math.abs(state.Tbath - state.T) < 0.02) state.T = state.Tbath;
+      state.time += sdt;
+      chartTimer += dt;
+      if (state.T !== prevT && chartTimer > 0.1) { chartTimer = 0; drawChart(); }
+    }
+    draw();
+    updateStatus();
+    evaluateGuess();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Start ----------
+  setBath(20);
+  updateSwatches(); buildGuess(); buildLegend(); renderTable();
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
